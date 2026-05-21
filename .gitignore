@@ -1,0 +1,8 @@
+dist/
+test_*.html
+.DS_Store
+*.swp
+*.swo
+node_modules/
+.playwright-mcp/
+.sisyphus/
