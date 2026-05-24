@@ -394,7 +394,7 @@ export function renderWechatHubHtml(input) {
     .oa-cover { width:100%; margin-top:10px; border-radius:8px; object-fit:cover; max-height:180px; background:#ddd; }
     .oa-desc { margin-top:8px; color:#555; font-size:13px; line-height:1.45; }
     .oa-open { margin-top:10px; border:none; background:#f2f2f2; border-radius:8px; padding:8px 10px; cursor:pointer; font-size:13px; }
-    .article-modal { position: fixed; top:0; bottom:0; left:50%; width:min(390px, 100vw); transform:translateX(-50%); background:#fff; z-index:30; display:none; overflow-y:auto; border-left:1px solid #cfcfcf; border-right:1px solid #cfcfcf; }
+    .article-modal { position: fixed; top:0; bottom:0; left:50%; width:min(390px, 100vw); transform:translateX(-50%); background:#fff; z-index:80; display:none; overflow-y:auto; border-left:1px solid #cfcfcf; border-right:1px solid #cfcfcf; }
     .article-modal.show { display:block; }
     .article-header { position: sticky; top: 0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
     .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
@@ -402,11 +402,12 @@ export function renderWechatHubHtml(input) {
     .article-title { font-size:24px; font-weight:700; line-height:1.35; margin:0; color:#191919; letter-spacing:0; }
     .article-sub { margin-top:8px; font-size:12px; color:#8f8f8f; }
     .article-cover { width:100%; border-radius:8px; margin-top:14px; }
-    .article-text { margin-top:14px; font-size:16px; line-height:1.8; color:#222; word-break:break-word; }
-    .article-text h1, .article-text h2, .article-text h3 { margin:22px 0 10px; line-height:1.35; color:#1f1f1f; }
-    .article-text h1 { font-size:22px; }
-    .article-text h2 { font-size:20px; }
-    .article-text h3 { font-size:18px; }
+    .article-text { margin-top:14px; font-size:15px; line-height:1.75; color:#222; word-break:break-word; }
+    .article-tui { border-top:1px solid #ededed; padding-top:14px; }
+    .article-text h1, .article-text h2, .article-text h3 { margin:18px 0 9px; line-height:1.38; color:#1f1f1f; }
+    .article-text h1 { font-size:19px; }
+    .article-text h2 { font-size:17px; }
+    .article-text h3 { font-size:16px; }
     .article-text p { margin:0 0 12px; }
     .article-text blockquote { margin:14px 0; padding:10px 12px; border-left:3px solid #d0d0d0; background:#f7f7f7; color:#555; }
     .article-text ul { margin:0 0 12px 20px; padding:0; }
@@ -650,8 +651,12 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .article-title { color:#d7ffe0; text-shadow:var(--glow); border-bottom:1px solid var(--line); padding-bottom:10px; }
     [data-theme="iterms"] .article-sub { color:var(--muted); }
     [data-theme="iterms"] .article-cover { border:1px solid #1a4020; border-radius:2px; }
-    [data-theme="iterms"] .article-text { color:#d7ffe0; text-shadow:none; font-size:15px; line-height:1.75; }
-    [data-theme="iterms"] .article-text h1,[data-theme="iterms"] .article-text h2,[data-theme="iterms"] .article-text h3 { color:#7CFF8F; text-shadow:var(--glow); border-bottom:1px solid #173020; padding-bottom:6px; }
+    [data-theme="iterms"] .article-text { color:#d7ffe0; text-shadow:none; font-size:14px; line-height:1.7; }
+    [data-theme="iterms"] .article-tui { border-top:1px solid #173020; padding-top:14px; }
+    [data-theme="iterms"] .article-text h1,[data-theme="iterms"] .article-text h2,[data-theme="iterms"] .article-text h3 { color:#7CFF8F; text-shadow:none; border-bottom:1px solid #173020; padding-bottom:5px; }
+    [data-theme="iterms"] .article-text h1 { font-size:17px; }
+    [data-theme="iterms"] .article-text h2 { font-size:15px; }
+    [data-theme="iterms"] .article-text h3 { font-size:14px; }
     [data-theme="iterms"] .article-text p { color:#d7ffe0; }
     [data-theme="iterms"] .article-text blockquote { background:#0d1a12; border-left-color:#7CFF8F; color:#9eeaa7; }
     [data-theme="iterms"] .article-text a { color:#7CFF8F; text-decoration:underline; text-underline-offset:3px; }
@@ -793,6 +798,7 @@ export function renderWechatHubHtml(input) {
     const tabContacts = document.getElementById('tab-contacts');
     const tabMoments = document.getElementById('tab-moments');
     const tabMe = document.getElementById('tab-me');
+    const homeTabbar = document.getElementById('home-tabbar');
     const badgeChat = document.getElementById('badge-chat');
     const badgeContacts = document.getElementById('badge-contacts');
     const badgeMoments = document.getElementById('badge-moments');
@@ -1125,6 +1131,7 @@ export function renderWechatHubHtml(input) {
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" alt="image"/>').join('');
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
+      if (homeTabbar) homeTabbar.style.display = 'none';
     }
 
     function openInlineArticle(data) {
@@ -1144,11 +1151,13 @@ export function renderWechatHubHtml(input) {
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" alt="image"/>').join('');
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
+      if (homeTabbar) homeTabbar.style.display = 'none';
     }
 
     function closeArticle() {
       articleModal.classList.remove('show');
       articleModal.setAttribute('aria-hidden', 'true');
+      if (homeTabbar) homeTabbar.style.display = 'grid';
     }
 
     function showContacts() {
@@ -1755,7 +1764,7 @@ export function renderWechatHubHtml(input) {
       }
       flushAll();
       flushCode();
-      return html.join('');
+      return '<div class="article-tui">' + html.join('') + '</div>';
     }
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
