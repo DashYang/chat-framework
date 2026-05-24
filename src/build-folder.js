@@ -33,6 +33,7 @@ function listMarkdownFiles(inputDir) {
  */
 export function buildFolder(inputDir, outputHtml) {
   const profilesPath = findProfilesPath(inputDir);
+  const articlesPath = findArticlesPath(inputDir);
   const profiles = profilesPath ? loadProfiles(profilesPath) : null;
   const profileEntries = profiles ? collectConversationEntriesFromProfiles(inputDir, profiles) : [];
   const fallbackMdFiles = listMarkdownFiles(inputDir);
@@ -48,6 +49,8 @@ export function buildFolder(inputDir, outputHtml) {
     selfId: src.selfId || undefined,
     chatPath: src.chatPath || undefined,
     profilePath: src.profilePath || undefined,
+    articlesPath: src.articlesPath || undefined,
+    resourceRootDir: inputDir,
     profiles
   }));
   const models = buildConversationModels(conversations);
@@ -70,6 +73,12 @@ function findProfilesPath(inputDir) {
   return "";
 }
 
+function findArticlesPath(inputDir) {
+  const dirPath = path.join(inputDir, "articles");
+  if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) return dirPath;
+  return "";
+}
+
 function collectConversationEntriesFromProfiles(inputDir, profiles) {
   const rows = [];
   for (const [profileId, profile] of Object.entries(profiles.users || {})) {
@@ -87,7 +96,7 @@ function collectConversationEntriesFromProfiles(inputDir, profiles) {
       if (chatPath && !fs.existsSync(chatPath)) {
         throw new Error(`[profile:${profileId}] group chat yml not found: ${mapped}`);
       }
-      rows.push({ mdPath, selfId: profileId, chatPath });
+      rows.push({ mdPath, selfId: profileId, chatPath, articlesPath: findArticlesPath(inputDir) });
     }
   }
   return rows;
@@ -132,7 +141,7 @@ function main() {
     const [inputDir, outputHtml] = process.argv.slice(2);
     if (!inputDir || !outputHtml) {
       console.error("Usage: node src/build-folder.js <input-folder> <output.html>");
-      console.error("Folder-build root semantics: profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from the provided inputDir.");
+      console.error("Folder-build root semantics: profiles/, profiles.yml, articles/, ui.yml, story.yml, chatFiles, and groupChats resolve from the provided inputDir.");
       process.exit(1);
     }
     buildFolder(inputDir, outputHtml);

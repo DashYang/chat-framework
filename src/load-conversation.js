@@ -123,10 +123,10 @@ function normalizeUserProfile(id, parsed) {
   const profile = parsed.profile || parsed || {};
   validateRawProfile(id, profile);
   const officialArticles = profile.officialArticles || {};
-  const articleRefs = Array.isArray(officialArticles)
+  const rawArticleRefs = Array.isArray(officialArticles)
     ? officialArticles.map((x) => String(x))
     : Object.keys(officialArticles).map((x) => String(x));
-  return {
+  const out = {
     name: profile.name || id,
     id,
     avatar: profile.avatar || "",
@@ -138,10 +138,15 @@ function normalizeUserProfile(id, parsed) {
       contacts: profile.aliases?.contacts || {}
     },
     moments: profile.moments || {},
-    officialArticles: articleRefs,
+    officialArticles: rawArticleRefs.map(normalizeArticleRef),
     chatFiles: Array.isArray(profile.chatFiles) ? profile.chatFiles.map((x) => String(x)) : [],
     groupChats: profile.groupChats || {}
   };
+  Object.defineProperty(out, "__rawOfficialArticleRefs", {
+    value: rawArticleRefs,
+    enumerable: false
+  });
+  return out;
 }
 
 function normalizeArticle(id, parsed) {
@@ -157,6 +162,14 @@ function normalizeArticle(id, parsed) {
     text: article.markdown || article.body || article.text || article.content || "",
     images
   };
+}
+
+function normalizeArticleRef(ref) {
+  const value = String(ref || "").trim();
+  if (!value) return "";
+  return isExplicitArticleFileRef(value)
+    ? path.basename(value).replace(/\.(ya?ml)$/i, "")
+    : value;
 }
 
 function loadProfilesFromDirectory(dirPath) {
@@ -208,6 +221,35 @@ function loadArticlesFromDirectory(dirPath) {
   return articles;
 }
 
+function isExplicitArticleFileRef(ref) {
+  return /\.(ya?ml)$/i.test(String(ref || "").trim());
+}
+
+function loadArticleFromFile(filePath, articleKey) {
+  const parsed = parseSimpleYaml(readText(filePath));
+  return normalizeArticle(articleKey, parsed);
+}
+
+function mergeExplicitOfficialArticles(target, profiles, baseDir) {
+  const users = profiles?.users || {};
+  for (const user of Object.values(users)) {
+    const refs = Array.isArray(user?.__rawOfficialArticleRefs)
+      ? user.__rawOfficialArticleRefs
+      : (Array.isArray(user?.officialArticles) ? user.officialArticles : []);
+    for (const rawRef of refs) {
+      const ref = String(rawRef || "").trim();
+      if (!ref || !isExplicitArticleFileRef(ref)) continue;
+      const articleId = normalizeArticleRef(ref);
+      if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
+      const filePath = path.resolve(baseDir, ref);
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        throw new Error(`Official article file not found: ${ref}`);
+      }
+      target[articleId] = loadArticleFromFile(filePath, articleId);
+    }
+  }
+}
+
 /**
  * Load one markdown chat file with linked YAML config and normalized messages.
  *
@@ -226,6 +268,9 @@ function loadArticlesFromDirectory(dirPath) {
 export function loadConversationFromMarkdown(markdownPath, options = {}) {
   try {
     const rootDir = path.dirname(markdownPath);
+    const resourceRootDir = options.resourceRootDir
+      ? path.resolve(options.resourceRootDir)
+      : rootDir;
     const md = readText(markdownPath);
     const parsed = parseChatMarkdown(md);
 
@@ -242,6 +287,7 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
     const profiles = options.profiles || loadProfiles(profilePath);
     const profileStat = fs.statSync(profilePath);
     const articles = loadArticlesFromDirectory(articlesPath);
+    mergeExplicitOfficialArticles(articles, profiles, resourceRootDir);
     const chatWrap = chatPath ? parseSimpleYaml(readText(chatPath)) : {};
     const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
 

@@ -315,6 +315,9 @@ profile:
   moments:
     m1:
       publishAt: "2026-04-30 09:00:00"
+      author:
+        name: "项目组运营号"
+        avatar: "https://example.com/op.jpg"
       text: "今天开了个好会"
       images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
 ```
@@ -322,14 +325,15 @@ profile:
 说明：
 - 朋友圈只支持文字和图片
 - `publishAt` 晚于当前系统时间（由账号推进驱动）的内容不会显示
+- `author` 为可选字段，可覆盖该条朋友圈的展示作者；未填写时默认使用所属 profile 的 `name` 和 `avatar`
 
 ### 3.2 微信文章配置
 
-文章实体统一放在 `articles/` 目录下，profile 中只保存文章引用：
+文章实体统一放在 `articles/` 目录下，profile 中保存文章文件路径引用：
 
 ```yml
 profile:
-  officialArticles: ["a1", "a2"]
+  officialArticles: ["./articles/a1.yml", "./articles/a2.yml"]
 ```
 
 `articles/a1.yml`:
@@ -347,6 +351,7 @@ article:
 
 说明：
 - 入口在会话总览页底部“文章”
+- `officialArticles` 推荐直接填写文章 yaml 文件路径；folder build 下相对路径以输入根目录解析，single-file build 下相对路径以 markdown 所在目录解析
 - 仅展示 `publishAt <= 当前系统时间` 的文章
 - 支持文字+图片
 

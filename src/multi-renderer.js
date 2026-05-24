@@ -577,10 +577,11 @@ export function renderWechatHubHtml(input) {
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
     .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { width:min(240px, 100%); border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card { width:min(220px); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
-    .contact-name { font-size:14px; font-weight:600; }
-    .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); }
+    .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
+    .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); word-break:break-word; }
     .contact-bio { margin-top:6px; font-size:12px; color:#4c4c4c; line-height:1.35; white-space:normal; word-break:break-word; }
     .inline-link { color: #576b95; }
     .mention { color: #576b95; font-weight: 600; }
@@ -699,7 +700,7 @@ export function renderWechatHubHtml(input) {
     <section id="moments-view" class="moments-view">
       <header class="top-nav">
         <div></div>
-        <div class="center-title">社交圈</div>
+        <div class="center-title">${escapeHtml(ui.topTitle)}</div>
         <div></div>
       </header>
       <div id="moments-scroll" class="moments-scroll"></div>
@@ -707,7 +708,7 @@ export function renderWechatHubHtml(input) {
     <section id="contacts-view" class="contacts-view">
       <header class="top-nav">
         <div></div>
-        <div class="center-title">文档</div>
+        <div class="center-title">${escapeHtml(ui.topTitle)}</div>
         <div></div>
       </header>
       <div id="contacts-scroll" class="contacts-scroll"></div>
@@ -730,8 +731,9 @@ export function renderWechatHubHtml(input) {
     </section>
 
     <section id="account-view" class="account-view">
-      <header class="account-top">
-        <button id="account-back" class="account-back" type="button">‹</button>
+      <header class="top-nav">
+        <div></div>
+        <div class="center-title">${escapeHtml(ui.topTitle)}</div>
         <div></div>
       </header>
       <div class="account-center">轻触头像以切换账号</div>
@@ -907,11 +909,12 @@ export function renderWechatHubHtml(input) {
             const publishRaw = moment.publishAt || moment.time || "";
             const day = toDayKey(publishRaw);
             if (!day || day > stageDay) continue;
+            const author = moment.author || {};
             rows.push({
               id: id + "-" + (moment.id || publishRaw || rows.length),
-              name: user.name || id,
-              nickName: user.nickName || user.name || id,
-              avatar: user.avatar || "",
+              name: author.name || user.name || id,
+              nickName: author.name || user.nickName || user.name || id,
+              avatar: author.avatar || user.avatar || "",
               text: String(moment.text || ""),
               images: normalizeMomentImages(moment),
               publishRaw: publishRaw,
@@ -979,24 +982,30 @@ export function renderWechatHubHtml(input) {
     function collectArticles() {
       const stageDay = currentStageMs();
       const rows = [];
+      const seen = new Set();
       for (const conv of (payload.conversations || [])) {
         if (!isVisibleByAccount(conv)) continue;
         const users = conv.profiles?.users || {};
         const repo = conv.articles || {};
         const user = users[activeAccountId];
         if (!user) continue;
+
         const refs = Array.isArray(user.officialArticles || user.articles)
           ? (user.officialArticles || user.articles)
           : Object.keys(user.officialArticles || user.articles || {});
+
         for (const refId of refs) {
-          const item = repo[String(refId)];
+          const key = String(refId);
+          if (seen.has(key)) continue;
+          const item = repo[key];
           if (!item) continue;
           const publishRaw = item.publishAt || item.time || "";
           const day = toDayKey(publishRaw);
           if (!day || day > stageDay) continue;
+          seen.add(key);
           const imgs = normalizeMomentImages(item);
           rows.push({
-            id: String(refId),
+            id: key,
             title: String(item.title || "未命名文章"),
             author: String(item.author || user.name || ""),
             publishRaw: publishRaw,
@@ -2079,7 +2088,7 @@ export function renderWechatHubHtml(input) {
     tabContacts.addEventListener('click', showContacts);
     tabMoments.addEventListener('click', showMoments);
     tabMe.addEventListener('click', showAccountView);
-    accountBack.addEventListener('click', showChatList);
+    if (accountBack) accountBack.addEventListener('click', showChatList);
 
     profileClose.addEventListener('click', closeProfile);
     profileModal.addEventListener('click', (e) => {
@@ -2247,11 +2256,12 @@ export function renderWechatStoryHtml(input) {
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
     .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card { width:min(220px); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
-    .contact-name { font-size:14px; font-weight:600; }
-    .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); }
-    .contact-bio { margin-top:6px; font-size:12px; color:#4c4c4c; line-height:1.35; }
+    .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
+    .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); word-break:break-word; }
+    .contact-bio { margin-top:6px; font-size:12px; color:#4c4c4c; line-height:1.35; white-space:normal; word-break:break-word; }
     .inline-link { color:#576b95; }
     .mention { color:#576b95; font-weight:600; }
     .end-tip { font-size:12px; color:var(--muted); text-align:center; margin:16px 0 4px; }
