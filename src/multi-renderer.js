@@ -394,7 +394,7 @@ export function renderWechatHubHtml(input) {
     .oa-cover { width:100%; margin-top:10px; border-radius:8px; object-fit:cover; max-height:180px; background:#ddd; }
     .oa-desc { margin-top:8px; color:#555; font-size:13px; line-height:1.45; }
     .oa-open { margin-top:10px; border:none; background:#f2f2f2; border-radius:8px; padding:8px 10px; cursor:pointer; font-size:13px; }
-    .article-modal { position: fixed; inset: 0; background:#fff; z-index:30; display:none; overflow-y:auto; }
+    .article-modal { position: fixed; top:0; bottom:0; left:50%; width:min(390px, 100vw); transform:translateX(-50%); background:#fff; z-index:30; display:none; overflow-y:auto; border-left:1px solid #cfcfcf; border-right:1px solid #cfcfcf; }
     .article-modal.show { display:block; }
     .article-header { position: sticky; top: 0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
     .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
@@ -643,7 +643,7 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .profile-item { color:var(--text); }
     [data-theme="iterms"] .profile-close { background:#0d1a12; border:1px solid var(--line); color:var(--text); }
     [data-theme="iterms"] .profile-avatar { border-radius:2px; }
-    [data-theme="iterms"] .article-modal { background:#05080d; }
+    [data-theme="iterms"] .article-modal { background:#05080d; border-color:#173020; }
     [data-theme="iterms"] .article-header { background:rgba(5,8,13,.96); border-color:var(--line); box-shadow:0 1px 0 #0f2b18; }
     [data-theme="iterms"] .article-back { color:var(--accent); }
     [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; }
@@ -1406,11 +1406,11 @@ export function renderWechatHubHtml(input) {
     }
     function unreadMomentsCount(day) {
       const seen = getMomentSeen(day);
-      return collectMoments().filter((m) => !seen[m.id]).length;
+      return collectMoments().filter((m) => m.dayKey === day && !seen[m.id]).length;
     }
     function unreadArticlesCount(day) {
       const seen = getArticleSeen(day);
-      return collectArticles().filter((a) => !seen[a.id]).length;
+      return collectArticles().filter((a) => a.dayKey === day && !seen[a.id]).length;
     }
     function setBadgeCount(node, n) {
       if (!node) return;
