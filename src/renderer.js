@@ -426,13 +426,127 @@ export function renderHtml(ctx) {
         const refMs = parseIdentityReference(referenceTime) ?? Date.now();
         let resolvedName = user?.name || user?.id || '';
         let resolvedBio = user?.bio || '';
+        let resolvedAvatar = user?.avatar || '';
         const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
         timeline.forEach((entry) => {
           if (!entry || typeof entry.effectiveAtMs !== 'number' || entry.effectiveAtMs > refMs) return;
           if (entry.name !== undefined) resolvedName = entry.name;
           if (entry.bio !== undefined) resolvedBio = entry.bio;
+          if (entry.avatar !== undefined) resolvedAvatar = entry.avatar;
         });
-        return { name: resolvedName, bio: resolvedBio };
+        return { name: resolvedName, bio: resolvedBio, avatar: resolvedAvatar };
+      }
+
+      function esc(s) {
+        return String(s || '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+      function safeMarkdownUrl(raw) {
+        const value = String(raw || '').trim();
+        if (/^(https?:)?\\/\\//i.test(value) || value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) return value;
+        return '#';
+      }
+      function renderMarkdownInline(raw) {
+        let html = esc(raw || '');
+        html = html.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
+        html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, (_m, alt, url) => (
+          '<img src="' + esc(safeMarkdownUrl(url)) + '" alt="' + esc(alt) + '"/>'
+        ));
+        html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (_m, text, url) => (
+          '<a href="' + esc(safeMarkdownUrl(url)) + '" target="_blank" rel="noreferrer">' + text + '</a>'
+        ));
+        html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+        html = html.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
+        return html;
+      }
+      function renderMarkdown(markdown) {
+        const lines = String(markdown || '').replace(/\\r\\n/g, '\\n').split('\\n');
+        const html = [];
+        let paragraph = [];
+        let list = [];
+        let quote = [];
+        let code = [];
+        let inCode = false;
+        function flushParagraph() {
+          if (!paragraph.length) return;
+          html.push('<p>' + renderMarkdownInline(paragraph.join(' ')) + '</p>');
+          paragraph = [];
+        }
+        function flushList() {
+          if (!list.length) return;
+          html.push('<ul>' + list.map((item) => '<li>' + renderMarkdownInline(item) + '</li>').join('') + '</ul>');
+          list = [];
+        }
+        function flushQuote() {
+          if (!quote.length) return;
+          html.push('<blockquote>' + quote.map((line) => '<p>' + renderMarkdownInline(line) + '</p>').join('') + '</blockquote>');
+          quote = [];
+        }
+        function flushAll() {
+          flushParagraph();
+          flushList();
+          flushQuote();
+        }
+        function flushCode() {
+          if (!code.length) return;
+          html.push('<pre><code>' + esc(code.join('\\n')) + '</code></pre>');
+          code = [];
+        }
+        for (const rawLine of lines) {
+          if (rawLine.trim().startsWith('\\x60\\x60\\x60')) {
+            if (inCode) {
+              flushCode();
+              inCode = false;
+            } else {
+              flushAll();
+              inCode = true;
+            }
+            continue;
+          }
+          if (inCode) {
+            code.push(rawLine);
+            continue;
+          }
+          const line = rawLine.trim();
+          if (!line) {
+            flushAll();
+            continue;
+          }
+          const heading = line.match(/^(#{1,3})\\s+(.+)$/);
+          if (heading) {
+            flushAll();
+            const level = heading[1].length;
+            html.push('<h' + level + '>' + renderMarkdownInline(heading[2]) + '</h' + level + '>');
+            continue;
+          }
+          if (/^>\\s?/.test(line)) {
+            flushParagraph();
+            flushList();
+            quote.push(line.replace(/^>\\s?/, ''));
+            continue;
+          }
+          if (/^[-*]\\s+/.test(line)) {
+            flushParagraph();
+            flushQuote();
+            list.push(line.replace(/^[-*]\\s+/, ''));
+            continue;
+          }
+          if (/^!\\[[^\\]]*\\]\\([^)]+\\)$/.test(line)) {
+            flushAll();
+            html.push(renderMarkdownInline(line));
+            continue;
+          }
+          flushList();
+          flushQuote();
+          paragraph.push(line);
+        }
+        flushAll();
+        flushCode();
+        return html.join('');
       }
 
       function openProfile(btn) {
@@ -440,7 +554,7 @@ export function renderHtml(ctx) {
         const displayName = btn.dataset.displayName || btn.dataset.nickName || '';
         const user = profileUsers[userId] || {};
         const resolved = resolveActiveProfile(user, new Date().toISOString());
-        avatar.src = btn.dataset.avatar || user.avatar || '';
+        avatar.src = resolved.avatar || btn.dataset.avatar || user.avatar || '';
         nameEl.textContent = resolved.name || displayName || userId;
         wechatEl.textContent = '昵称：' + (displayName || resolved.name || '未设置');
         bioEl.textContent = '简介：' + (resolved.bio || '无');
@@ -461,7 +575,7 @@ export function renderHtml(ctx) {
         articleSub.textContent = author;
         articleCover.style.display = cover ? 'block' : 'none';
         articleCover.src = cover || '';
-        articleText.textContent = text;
+        articleText.innerHTML = renderMarkdown(text);
         articleImages.innerHTML = images.map((url) => '<img src="' + url + '" alt="image"/>').join('');
         articleModal.classList.add('show');
         articleModal.setAttribute('aria-hidden', 'false');

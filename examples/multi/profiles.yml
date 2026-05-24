@@ -7,9 +7,7 @@ users:
     moments:
       m1:
         publishAt: "2026-04-28 09:30:00"
-        author:
-          name: "Room 运营号"
-          avatar: "https://picsum.photos/seed/room-ops/100/100"
+        author: "@bob"
         text: "今天把需求拆分完了，下午开始联调。"
         images: ["https://picsum.photos/seed/multi-alice-m1/300/300"]
     officialArticles: ["./articles/multi-alice-a1.yml"]

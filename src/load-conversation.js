@@ -84,7 +84,8 @@ function normalizeIdentityTimeline(timeline) {
       effectiveAt,
       effectiveAtMs,
       name: Object.prototype.hasOwnProperty.call(identity, "name") ? String(identity.name || "") : undefined,
-      bio: Object.prototype.hasOwnProperty.call(identity, "bio") ? String(identity.bio || "") : undefined
+      bio: Object.prototype.hasOwnProperty.call(identity, "bio") ? String(identity.bio || "") : undefined,
+      avatar: Object.prototype.hasOwnProperty.call(identity, "avatar") ? String(identity.avatar || "") : undefined
     });
   }
   out.sort((a, b) => a.effectiveAtMs - b.effectiveAtMs);
@@ -109,14 +110,16 @@ export function resolveProfileIdentity(user, referenceTime) {
   const refMs = parseIdentityReference(referenceTime) ?? Date.now();
   let name = user?.name || user?.id || "";
   let bio = user?.bio || "";
+  let avatar = user?.avatar || "";
   const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
   for (const entry of timeline) {
     if (!entry || typeof entry !== "object") continue;
     if (typeof entry.effectiveAtMs !== "number" || entry.effectiveAtMs > refMs) continue;
     if (entry.name !== undefined) name = entry.name;
     if (entry.bio !== undefined) bio = entry.bio;
+    if (entry.avatar !== undefined) avatar = entry.avatar;
   }
-  return { name, bio };
+  return { name, bio, avatar };
 }
 
 function normalizeUserProfile(id, parsed) {

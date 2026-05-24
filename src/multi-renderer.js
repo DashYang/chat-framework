@@ -367,6 +367,7 @@ export function renderWechatHubHtml(input) {
       box-shadow: 0 1px 2px rgba(0,0,0,.05);
     }
     .moment-head { display:flex; align-items:center; gap:10px; }
+    .moment-profile-btn { border:none; background:transparent; padding:0; display:flex; align-items:center; gap:10px; text-align:left; color:inherit; cursor:pointer; min-width:0; }
     .moment-avatar { width:38px; height:38px; border-radius:8px; object-fit:cover; background:#ddd; }
     .moment-name { font-size:14px; font-weight:600; }
     .moment-time { font-size:11px; color:#8f8f8f; margin-top:2px; }
@@ -395,23 +396,26 @@ export function renderWechatHubHtml(input) {
     .oa-open { margin-top:10px; border:none; background:#f2f2f2; border-radius:8px; padding:8px 10px; cursor:pointer; font-size:13px; }
     .article-modal { position: fixed; inset: 0; background:#fff; z-index:30; display:none; overflow-y:auto; }
     .article-modal.show { display:block; }
-    .article-header { position: sticky; top: 0; background:#fff; border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
+    .article-header { position: sticky; top: 0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
     .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
-    .article-body { padding:14px 14px 30px; }
-    .article-title { font-size:24px; font-weight:700; line-height:1.35; margin:0; }
+    .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; }
+    .article-title { font-size:24px; font-weight:700; line-height:1.35; margin:0; color:#191919; letter-spacing:0; }
     .article-sub { margin-top:8px; font-size:12px; color:#8f8f8f; }
-    .article-cover { width:100%; border-radius:8px; margin-top:12px; }
+    .article-cover { width:100%; border-radius:8px; margin-top:14px; }
     .article-text { margin-top:14px; font-size:16px; line-height:1.8; color:#222; word-break:break-word; }
-    .article-text h1, .article-text h2, .article-text h3 { margin:18px 0 8px; line-height:1.35; }
+    .article-text h1, .article-text h2, .article-text h3 { margin:22px 0 10px; line-height:1.35; color:#1f1f1f; }
     .article-text h1 { font-size:22px; }
     .article-text h2 { font-size:20px; }
     .article-text h3 { font-size:18px; }
     .article-text p { margin:0 0 12px; }
-    .article-text blockquote { margin:12px 0; padding:8px 12px; border-left:3px solid #d0d0d0; background:#f7f7f7; color:#555; }
+    .article-text blockquote { margin:14px 0; padding:10px 12px; border-left:3px solid #d0d0d0; background:#f7f7f7; color:#555; }
     .article-text ul { margin:0 0 12px 20px; padding:0; }
     .article-text li { margin:4px 0; }
     .article-text img { width:100%; border-radius:8px; margin:10px 0; background:#ddd; }
     .article-text a { color:#576b95; text-decoration:none; }
+    .article-text code { font-family:"SF Mono","Menlo","Consolas",monospace; font-size:.9em; background:#f6f6f6; border-radius:4px; padding:1px 4px; color:#d14; }
+    .article-text pre { overflow:auto; margin:14px 0; padding:12px; border-radius:8px; background:#f6f8fa; color:#24292f; line-height:1.55; }
+    .article-text pre code { padding:0; background:transparent; color:inherit; }
     .article-images { margin-top:12px; display:grid; gap:8px; }
     .article-images img { width:100%; border-radius:8px; background:#ddd; }
     .list-scroll {
@@ -640,16 +644,21 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .profile-close { background:#0d1a12; border:1px solid var(--line); color:var(--text); }
     [data-theme="iterms"] .profile-avatar { border-radius:2px; }
     [data-theme="iterms"] .article-modal { background:#05080d; }
-    [data-theme="iterms"] .article-header { background:#05080d; border-color:var(--line); }
+    [data-theme="iterms"] .article-header { background:rgba(5,8,13,.96); border-color:var(--line); box-shadow:0 1px 0 #0f2b18; }
     [data-theme="iterms"] .article-back { color:var(--accent); }
-    [data-theme="iterms"] .article-body { color:var(--text); }
-    [data-theme="iterms"] .article-title { color:var(--text); text-shadow:var(--glow); }
+    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; }
+    [data-theme="iterms"] .article-title { color:#d7ffe0; text-shadow:var(--glow); border-bottom:1px solid var(--line); padding-bottom:10px; }
     [data-theme="iterms"] .article-sub { color:var(--muted); }
-    [data-theme="iterms"] .article-text { color:var(--text); text-shadow:0 0 3px rgba(0,255,65,0.3); }
-    [data-theme="iterms"] .article-text h1,[data-theme="iterms"] .article-text h2,[data-theme="iterms"] .article-text h3 { color:var(--accent); text-shadow:var(--glow); }
-    [data-theme="iterms"] .article-text blockquote { background:#0d1a12; border-left-color:var(--accent); color:var(--muted); }
-    [data-theme="iterms"] .article-text a { color:var(--accent); }
-    [data-theme="iterms"] .article-images img { border-color:var(--line); }
+    [data-theme="iterms"] .article-cover { border:1px solid #1a4020; border-radius:2px; }
+    [data-theme="iterms"] .article-text { color:#d7ffe0; text-shadow:none; font-size:15px; line-height:1.75; }
+    [data-theme="iterms"] .article-text h1,[data-theme="iterms"] .article-text h2,[data-theme="iterms"] .article-text h3 { color:#7CFF8F; text-shadow:var(--glow); border-bottom:1px solid #173020; padding-bottom:6px; }
+    [data-theme="iterms"] .article-text p { color:#d7ffe0; }
+    [data-theme="iterms"] .article-text blockquote { background:#0d1a12; border-left-color:#7CFF8F; color:#9eeaa7; }
+    [data-theme="iterms"] .article-text a { color:#7CFF8F; text-decoration:underline; text-underline-offset:3px; }
+    [data-theme="iterms"] .article-text code { background:#111820; border:1px solid #173020; border-radius:2px; color:#ffd866; }
+    [data-theme="iterms"] .article-text pre { background:#080c12; border:1px solid #173020; border-radius:2px; box-shadow:inset 0 0 0 1px rgba(0,255,65,.05); }
+    [data-theme="iterms"] .article-text pre code { border:none; color:#d7ffe0; }
+    [data-theme="iterms"] .article-text img,[data-theme="iterms"] .article-images img { border:1px solid var(--line); border-radius:2px; }
     [data-theme="iterms"] .end-tip { color:var(--muted); }
     [data-theme="iterms"] .recall-tip { color:var(--muted); }
     [data-theme="iterms"] .voice-icon { color:var(--accent); }
@@ -848,13 +857,15 @@ export function renderWechatHubHtml(input) {
       const refMs = parseIdentityReference(referenceTime) ?? Date.now();
       let name = user?.name || user?.id || '';
       let bio = user?.bio || '';
+      let avatar = user?.avatar || '';
       const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
       timeline.forEach((entry) => {
         if (!entry || typeof entry.effectiveAtMs !== 'number' || entry.effectiveAtMs > refMs) return;
         if (entry.name !== undefined) name = entry.name;
         if (entry.bio !== undefined) bio = entry.bio;
+        if (entry.avatar !== undefined) avatar = entry.avatar;
       });
-      return { name, bio };
+      return { name, bio, avatar };
     }
 
     function resolveAccountCardName(user, accountId) {
@@ -909,12 +920,14 @@ export function renderWechatHubHtml(input) {
             const publishRaw = moment.publishAt || moment.time || "";
             const day = toDayKey(publishRaw);
             if (!day || day > stageDay) continue;
-            const author = moment.author || {};
+            const author = resolveMomentAuthor(moment, user, users);
             rows.push({
               id: id + "-" + (moment.id || publishRaw || rows.length),
-              name: author.name || user.name || id,
-              nickName: author.name || user.nickName || user.name || id,
-              avatar: author.avatar || user.avatar || "",
+              name: author.name || id,
+              nickName: author.nickName || author.name || id,
+              avatar: author.avatar || "",
+              bio: author.bio || "",
+              profileId: author.profileId || "",
               text: String(moment.text || ""),
               images: normalizeMomentImages(moment),
               publishRaw: publishRaw,
@@ -927,6 +940,58 @@ export function renderWechatHubHtml(input) {
       return rows;
     }
 
+    function resolveAuthorRef(rawAuthor) {
+      if (!rawAuthor) return "";
+      if (typeof rawAuthor === "string") {
+        const value = rawAuthor.trim();
+        return value.startsWith("@") ? value.slice(1).trim() : "";
+      }
+      if (typeof rawAuthor === "object") {
+        return String(rawAuthor.refId || rawAuthor.ref || rawAuthor.id || rawAuthor.profileId || rawAuthor.userId || "").trim().replace(/^@/, "");
+      }
+      return "";
+    }
+
+    function resolveMomentAuthor(moment, owner, users) {
+      const rawAuthor = moment?.author;
+      const refId = resolveAuthorRef(rawAuthor);
+      if (refId && users?.[refId]) {
+        const profile = users[refId] || {};
+        const resolved = resolveEffectiveProfile(profile, currentStageMs());
+        return {
+          profileId: refId,
+          name: resolved.name || profile.name || refId,
+          nickName: profile.nickName || resolved.name || profile.name || refId,
+          avatar: resolved.avatar || profile.avatar || "",
+          bio: resolved.bio || profile.bio || ""
+        };
+      }
+      if (rawAuthor && typeof rawAuthor === "object") {
+        return {
+          name: rawAuthor.name || owner?.name || owner?.id || "",
+          nickName: rawAuthor.nickName || rawAuthor.name || owner?.nickName || owner?.name || owner?.id || "",
+          avatar: rawAuthor.avatar || owner?.avatar || "",
+          bio: rawAuthor.bio || owner?.bio || ""
+        };
+      }
+      if (typeof rawAuthor === "string" && rawAuthor.trim()) {
+        return {
+          name: rawAuthor.trim(),
+          nickName: rawAuthor.trim(),
+          avatar: owner?.avatar || "",
+          bio: owner?.bio || ""
+        };
+      }
+      const resolvedOwner = resolveEffectiveProfile(owner, currentStageMs());
+      return {
+        name: resolvedOwner.name || owner?.name || owner?.id || "",
+        nickName: owner?.nickName || resolvedOwner.name || owner?.name || owner?.id || "",
+        avatar: resolvedOwner.avatar || owner?.avatar || "",
+        bio: resolvedOwner.bio || owner?.bio || "",
+        profileId: owner?.id || ""
+      };
+    }
+
     function renderMoments() {
       const rows = collectMoments();
       if (!rows.length) {
@@ -937,10 +1002,20 @@ export function renderWechatHubHtml(input) {
         const imgs = m.images.slice(0, 9).map((url) => '<img src="' + esc(url) + '" alt="moment"/>').join('');
         const text = m.text ? '<div class="moment-text">' + formatText(m.text) + '</div>' : '';
         const imgWrap = imgs ? '<div class="moment-images">' + imgs + '</div>' : '';
+        const profileAttrs = ' data-user-id="' + esc(m.profileId || '') + '"'
+          + ' data-name="' + esc(m.name || '') + '"'
+          + ' data-display-name="' + esc(m.nickName || m.name || '') + '"'
+          + ' data-nick-name="' + esc(m.nickName || m.name || '') + '"'
+          + ' data-avatar="' + esc(m.avatar || '') + '"'
+          + ' data-bio="' + esc(m.bio || '') + '"';
+        const headInner = '<img class="moment-avatar" src="' + esc(m.avatar) + '" alt="' + esc(m.name) + '"/>'
+          + '<div><div class="moment-name">' + esc(m.name) + '</div><div class="moment-time">' + esc(m.publishRaw) + '</div></div>';
+        const head = m.profileId
+          ? '<button class="moment-profile-btn" type="button"' + profileAttrs + '>' + headInner + '</button>'
+          : headInner;
         return '<article class="moment-card">'
           + '<div class="moment-head">'
-          + '<img class="moment-avatar" src="' + esc(m.avatar) + '" alt="' + esc(m.name) + '"/>'
-          + '<div><div class="moment-name">' + esc(m.name) + '</div><div class="moment-time">' + esc(m.publishRaw) + '</div></div>'
+          + head
           + '</div>'
           + text + imgWrap
           + '</article>';
@@ -1586,6 +1661,7 @@ export function renderWechatHubHtml(input) {
     }
     function renderMarkdownInline(raw) {
       let html = esc(raw || "");
+      html = html.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
       html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, (_m, alt, url) => (
         '<img src="' + esc(safeMarkdownUrl(url)) + '" alt="' + esc(alt) + '"/>'
       ));
@@ -1602,6 +1678,8 @@ export function renderWechatHubHtml(input) {
       let paragraph = [];
       let list = [];
       let quote = [];
+      let code = [];
+      let inCode = false;
       function flushParagraph() {
         if (!paragraph.length) return;
         html.push('<p>' + renderMarkdownInline(paragraph.join(" ")) + '</p>');
@@ -1622,7 +1700,26 @@ export function renderWechatHubHtml(input) {
         flushList();
         flushQuote();
       }
+      function flushCode() {
+        if (!code.length) return;
+        html.push('<pre><code>' + esc(code.join("\\n")) + '</code></pre>');
+        code = [];
+      }
       for (const rawLine of lines) {
+        if (rawLine.trim().startsWith('\\x60\\x60\\x60')) {
+          if (inCode) {
+            flushCode();
+            inCode = false;
+          } else {
+            flushAll();
+            inCode = true;
+          }
+          continue;
+        }
+        if (inCode) {
+          code.push(rawLine);
+          continue;
+        }
         const line = rawLine.trim();
         if (!line) {
           flushAll();
@@ -1657,6 +1754,7 @@ export function renderWechatHubHtml(input) {
         paragraph.push(line);
       }
       flushAll();
+      flushCode();
       return html.join('');
     }
     function formatVoiceDuration(sec) {
@@ -1691,13 +1789,15 @@ export function renderWechatHubHtml(input) {
       const refMs = parseIdentityReference(referenceTime) ?? Date.now();
       let name = user?.name || user?.id || '';
       let bio = user?.bio || '';
+      let avatar = user?.avatar || '';
       const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
       timeline.forEach((entry) => {
         if (!entry || typeof entry.effectiveAtMs !== 'number' || entry.effectiveAtMs > refMs) return;
         if (entry.name !== undefined) name = entry.name;
         if (entry.bio !== undefined) bio = entry.bio;
+        if (entry.avatar !== undefined) avatar = entry.avatar;
       });
-      return { name, bio };
+      return { name, bio, avatar };
     }
     function openProfileByDataset(data) {
       profileAvatar.src = data.avatar || '';
@@ -1741,7 +1841,7 @@ export function renderWechatHubHtml(input) {
         refId: raw.refId || "",
         name: resolvedProfile.name || raw.name || raw.refId || "",
         nickName: fromProfile.nickName || raw.nickName || resolvedProfile.name || raw.name || raw.refId || "",
-        avatar: fromProfile.avatar || raw.avatar || "",
+        avatar: resolvedProfile.avatar || fromProfile.avatar || raw.avatar || "",
         bio: resolvedProfile.bio || raw.bio || ""
       };
     }
@@ -1813,12 +1913,13 @@ export function renderWechatHubHtml(input) {
       const self = activeAccountId || conv.self;
       const displayName = resolveDisplayName(conv, msg.senderId);
       const selfCls = msg.senderId === self ? 'msg self' : 'msg';
+      const avatarUrl = resolvedProfile.avatar || user.avatar || '';
         const avatar = '<button class="avatar-btn" type="button"'
          + ' data-name="' + esc(resolvedProfile.name || msg.senderId) + '"'
          + ' data-display-name="' + esc(displayName || user.nickName || resolvedProfile.name || msg.senderId || '') + '"'
          + ' data-bio="' + esc(resolvedProfile.bio || '') + '"'
-         + ' data-avatar="' + esc(user.avatar || '') + '">'
-         + '<img class="avatar" src="' + esc(user.avatar || '') + '" alt="' + esc(displayName || resolvedProfile.name || msg.senderId) + '"/>'
+         + ' data-avatar="' + esc(avatarUrl) + '">'
+         + '<img class="avatar" src="' + esc(avatarUrl) + '" alt="' + esc(displayName || resolvedProfile.name || msg.senderId) + '"/>'
          + '</button>';
       const bubbleCls = (msg.kind === 'image' || msg.kind === 'voice') ? 'bubble media' : 'bubble';
       const body = (opts.forceRecalled && msg.recall)
@@ -2033,7 +2134,10 @@ export function renderWechatHubHtml(input) {
       accountListWrap.innerHTML = accountIds.filter((id) => isAccountUnlocked(id)).map((id) => {
         const user = payload.conversations.find((c) => c.profiles?.users?.[id])?.profiles?.users?.[id] || {};
         const name = resolveAccountCardName(user, id);
-        const avatar = payload.conversations.find((c) => c.profiles?.users?.[id])?.profiles?.users?.[id]?.avatar || "";
+        const stageDays = collectStageDaysForAccount(id);
+        const rawStageIndex = Number(stageIndexMap[id] || 0);
+        const stageDay = stageDays.length ? stageDays[Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageDays.length - 1))] : currentStageMs();
+        const avatar = resolveEffectiveProfile(user, stageDay).avatar || user.avatar || "";
         const current = id === activeAccountId ? '<div class="account-current">● 当前使用</div>' : '';
         return '<button class="account-card" type="button" data-id="' + esc(id) + '">'
           + '<img class="account-avatar" src="' + esc(avatar) + '" alt="avatar"/>'
@@ -2089,6 +2193,10 @@ export function renderWechatHubHtml(input) {
     tabMoments.addEventListener('click', showMoments);
     tabMe.addEventListener('click', showAccountView);
     if (accountBack) accountBack.addEventListener('click', showChatList);
+    momentsScroll.addEventListener('click', (e) => {
+      const profileBtn = e.target.closest('.moment-profile-btn');
+      if (profileBtn) openProfileByDataset(profileBtn.dataset);
+    });
 
     profileClose.addEventListener('click', closeProfile);
     profileModal.addEventListener('click', (e) => {

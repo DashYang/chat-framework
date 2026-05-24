@@ -61,13 +61,14 @@ a.inline-link { color: #576b95; }
 .profile-close { margin-top: 12px; width: 100%; border:none; border-radius:8px; background:#f2f2f2; padding:8px 0; cursor:pointer; }
 .article-modal { position: fixed; inset: 0; background:#fff; z-index: 30; display:none; overflow-y:auto; }
 .article-modal.show { display:block; }
-.article-header { position: sticky; top: 0; background:#fff; border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
+.article-header { position: sticky; top: 0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
 .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
-.article-body { padding:14px 14px 30px; }
+.article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; }
 .article-page-title { font-size:24px; font-weight:700; line-height:1.35; margin:0; }
 .article-page-sub { margin-top:8px; font-size:12px; color:#8f8f8f; }
 .article-page-cover { width:100%; border-radius:8px; margin-top:12px; }
-.article-page-text { margin-top:14px; font-size:16px; line-height:1.8; color:#222; white-space:pre-wrap; word-break:break-word; }
+.article-page-text { margin-top:14px; font-size:16px; line-height:1.8; color:#222; word-break:break-word; }
+.article-page-text h1,.article-page-text h2,.article-page-text h3{margin:22px 0 10px;line-height:1.35;color:#1f1f1f}.article-page-text h1{font-size:22px}.article-page-text h2{font-size:20px}.article-page-text h3{font-size:18px}.article-page-text p{margin:0 0 12px}.article-page-text blockquote{margin:14px 0;padding:10px 12px;border-left:3px solid #d0d0d0;background:#f7f7f7;color:#555}.article-page-text ul{margin:0 0 12px 20px;padding:0}.article-page-text li{margin:4px 0}.article-page-text img{width:100%;border-radius:8px;margin:10px 0;background:#ddd}.article-page-text a{color:#576b95;text-decoration:none}.article-page-text code{font-family:"SF Mono","Menlo","Consolas",monospace;font-size:.9em;background:#f6f6f6;border-radius:4px;padding:1px 4px;color:#d14}.article-page-text pre{overflow:auto;margin:14px 0;padding:12px;border-radius:8px;background:#f6f8fa;color:#24292f;line-height:1.55}.article-page-text pre code{padding:0;background:transparent;color:inherit}
 .article-page-images { margin-top:12px; display:grid; gap:8px; }
 .article-page-images img { width:100%; border-radius:8px; background:#ddd; }
 `;
@@ -151,12 +152,12 @@ a.inline-link{color:var(--accent)}
 .profile-name{font-size:16px;font-weight:700;text-shadow:var(--glow)}.profile-item{font-size:13px;color:var(--ink);line-height:1.45;margin-top:4px;word-break:break-word}
 .profile-close{margin-top:12px;width:100%;border:1px solid #173020;border-radius:4px;background:#0d1a12;padding:8px 0;cursor:pointer;color:var(--ink)}
 .article-modal{position:fixed;inset:0;background:#05080d;z-index:30;display:none;overflow-y:auto}
-.article-modal.show{display:block}.article-header{position:sticky;top:0;background:#05080d;border-bottom:2px solid #173020;height:46px;display:flex;align-items:center;padding:0 10px}
+.article-modal.show{display:block}.article-header{position:sticky;top:0;background:rgba(5,8,13,.96);border-bottom:2px solid #173020;height:46px;display:flex;align-items:center;padding:0 10px;box-shadow:0 1px 0 #0f2b18}
 .article-back{border:none;background:transparent;font-size:14px;color:var(--accent);cursor:pointer;padding:6px 8px}
-.article-body{padding:14px 14px 30px}.article-page-title{font-size:24px;font-weight:700;line-height:1.35;margin:0;text-shadow:var(--glow)}
+.article-body{padding:18px 18px 36px;max-width:760px;margin:0 auto}.article-page-title{font-size:24px;font-weight:700;line-height:1.35;margin:0;text-shadow:var(--glow);color:#d7ffe0;border-bottom:1px solid #173020;padding-bottom:10px}
 .article-page-sub{margin-top:8px;font-size:12px;color:var(--muted)}.article-page-cover{width:100%;border:1px solid #1a4020;margin-top:12px}
-.article-page-text{margin-top:14px;font-size:16px;line-height:1.8;color:var(--ink);white-space:pre-wrap;word-break:break-word;text-shadow:0 0 3px rgba(0,255,65,0.3)}
-.article-page-images{margin-top:12px;display:grid;gap:8px}.article-page-images img{width:100%;border:1px solid #173020;background:#0d1a12}
+.article-page-text{margin-top:14px;font-size:15px;line-height:1.75;color:#d7ffe0;word-break:break-word;text-shadow:none}.article-page-text h1,.article-page-text h2,.article-page-text h3{margin:22px 0 10px;line-height:1.35;color:#7CFF8F;text-shadow:var(--glow);border-bottom:1px solid #173020;padding-bottom:6px}.article-page-text h1{font-size:22px}.article-page-text h2{font-size:20px}.article-page-text h3{font-size:18px}.article-page-text p{margin:0 0 12px;color:#d7ffe0}.article-page-text blockquote{margin:14px 0;padding:10px 12px;border-left:3px solid #7CFF8F;background:#0d1a12;color:#9eeaa7}.article-page-text ul{margin:0 0 12px 20px;padding:0}.article-page-text li{margin:4px 0}.article-page-text img{width:100%;border:1px solid #173020;border-radius:2px;margin:10px 0;background:#0d1a12}.article-page-text a{color:#7CFF8F;text-decoration:underline;text-underline-offset:3px}.article-page-text code{font-family:"SF Mono","Menlo","Courier New",monospace;font-size:.9em;background:#111820;border:1px solid #173020;border-radius:2px;padding:1px 4px;color:#ffd866}.article-page-text pre{overflow:auto;margin:14px 0;padding:12px;border:1px solid #173020;border-radius:2px;background:#080c12;color:#d7ffe0;line-height:1.55;box-shadow:inset 0 0 0 1px rgba(0,255,65,.05)}.article-page-text pre code{padding:0;background:transparent;border:none;color:inherit}
+.article-page-images{margin-top:12px;display:grid;gap:8px}.article-page-images img{width:100%;border:1px solid #173020;background:#0d1a12;border-radius:2px}
 `;
 
 export const themes = {

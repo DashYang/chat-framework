@@ -290,6 +290,7 @@ users:
     - 在单会话页回放中，随当前消息的时间戳动态变化。
     - 在会话总览页中，随当前账号的**系统时间**动态变化。
     - 在账号切换列表（“我”Tab）中，每个账号卡片根据**该账号自身当前系统时间**解析身份。
+  - 支持字段：`name`、`bio`、`avatar`。其中 `avatar` 用于需要按剧情日期变化头像的资料展示与社交作者展示。
 
 
 ### 3.2 目录模式示例（推荐）
@@ -315,9 +316,7 @@ profile:
   moments:
     m1:
       publishAt: "2026-04-30 09:00:00"
-      author:
-        name: "项目组运营号"
-        avatar: "https://example.com/op.jpg"
+      author: "@bob"
       text: "今天开了个好会"
       images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
 ```
@@ -325,7 +324,9 @@ profile:
 说明：
 - 朋友圈只支持文字和图片
 - `publishAt` 晚于当前系统时间（由账号推进驱动）的内容不会显示
-- `author` 为可选字段，可覆盖该条朋友圈的展示作者；未填写时默认使用所属 profile 的 `name` 和 `avatar`
+- `author` 为可选字段；未填写时默认使用所属 profile 的当前生效 `name/avatar`
+- `author: "@<profileId>"` 可引用另一个 profile，渲染时会按当前系统时间解析该 profile 的 `identityTimeline.name/avatar`
+- `author` 也可写成对象（如 `name/avatar/bio` 或 `refId/id/profileId`），对象引用同样会按当前系统时间解析对应 profile
 
 ### 3.2 微信文章配置
 
