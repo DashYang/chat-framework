@@ -141,7 +141,12 @@ export function resolveQuotes(messages) {
     if (target.kind === "image") {
       snippet = target.text ? `[图片] ${target.text.slice(0, 40)}` : "[图片]";
     }
-    if (target.kind === "link-card") snippet = `[链接] ${target.linkCard?.title || target.linkCard?.url || ""}`;
+    if (target.kind === "link-card") {
+      const doc = target.linkCard?.doc || target.linkCard?.ref || "";
+      snippet = doc
+        ? `[文档] ${target.linkCard?.title || doc}`
+        : `[链接] ${target.linkCard?.title || target.linkCard?.url || ""}`;
+    }
     if (target.kind === "voice") snippet = `[语音] ${target.durationSec ? `${target.durationSec}秒` : ""}`;
     if (target.kind === "article-card") snippet = `[文章] ${target.articleCard?.title || target.articleCard?.refId || ""}`;
     if (target.kind === "contact-card") snippet = `[名片] ${target.contactCard?.name || target.contactCard?.refId || ""}`;

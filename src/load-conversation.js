@@ -129,6 +129,9 @@ function normalizeUserProfile(id, parsed) {
   const rawArticleRefs = Array.isArray(officialArticles)
     ? officialArticles.map((x) => String(x))
     : Object.keys(officialArticles).map((x) => String(x));
+  const defaultView = ["chat", "doc", "social"].includes(profile.defaultView)
+    ? profile.defaultView
+    : "chat";
   const out = {
     name: profile.name || id,
     id,
@@ -143,7 +146,8 @@ function normalizeUserProfile(id, parsed) {
     moments: profile.moments || {},
     officialArticles: rawArticleRefs.map(normalizeArticleRef),
     chatFiles: Array.isArray(profile.chatFiles) ? profile.chatFiles.map((x) => String(x)) : [],
-    groupChats: profile.groupChats || {}
+    groupChats: profile.groupChats || {},
+    defaultView
   };
   Object.defineProperty(out, "__rawOfficialArticleRefs", {
     value: rawArticleRefs,
@@ -253,6 +257,22 @@ function mergeExplicitOfficialArticles(target, profiles, baseDir) {
   }
 }
 
+function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
+  for (const msg of messages) {
+    if (msg.kind !== "link-card") continue;
+    const card = msg.linkCard || {};
+    const docPath = (card.doc || card.ref || "").trim();
+    if (!docPath || !isExplicitArticleFileRef(docPath)) continue;
+    const articleId = normalizeArticleRef(docPath);
+    if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
+    const filePath = path.resolve(resourceRootDir, docPath);
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      throw new Error(`link-card doc file not found: ${docPath}`);
+    }
+    target[articleId] = loadArticleFromFile(filePath, articleId);
+  }
+}
+
 /**
  * Load one markdown chat file with linked YAML config and normalized messages.
  *
@@ -291,6 +311,7 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
     const profileStat = fs.statSync(profilePath);
     const articles = loadArticlesFromDirectory(articlesPath);
     mergeExplicitOfficialArticles(articles, profiles, resourceRootDir);
+    mergeDocLinkCardArticles(articles, parsed.messages, resourceRootDir);
     const chatWrap = chatPath ? parseSimpleYaml(readText(chatPath)) : {};
     const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
 

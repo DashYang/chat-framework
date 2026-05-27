@@ -1,3 +1,5 @@
+import { articlePageCss, articleMarkdownRuntimeSource } from "./article-markdown.js";
+
 /**
  * Escape HTML special chars.
  *
@@ -41,6 +43,11 @@ function toSnippet(message, articles, profiles) {
     return `[名片] ${name}`.trim();
   }
   if (message.kind === "link-card") {
+    const doc = message.linkCard?.doc || message.linkCard?.ref || "";
+    if (doc) {
+      const title = message.linkCard?.title || doc;
+      return `[文档] ${title}`;
+    }
     const title = message.linkCard?.title || message.linkCard?.url || "链接";
     return `[链接] ${title}`;
   }
@@ -398,27 +405,8 @@ export function renderWechatHubHtml(input) {
     .article-modal.show { display:block; }
     .article-header { position: sticky; top: 0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
     .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
-    .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; }
-    .article-title { font-size:24px; font-weight:700; line-height:1.35; margin:0; color:#191919; letter-spacing:0; }
-    .article-sub { margin-top:8px; font-size:12px; color:#8f8f8f; }
-    .article-cover { width:100%; border-radius:8px; margin-top:14px; }
-    .article-text { margin-top:14px; font-size:15px; line-height:1.75; color:#222; word-break:break-word; }
-    .article-tui { border-top:1px solid #ededed; padding-top:14px; }
-    .article-text h1, .article-text h2, .article-text h3 { margin:18px 0 9px; line-height:1.38; color:#1f1f1f; }
-    .article-text h1 { font-size:19px; }
-    .article-text h2 { font-size:17px; }
-    .article-text h3 { font-size:16px; }
-    .article-text p { margin:0 0 12px; }
-    .article-text blockquote { margin:14px 0; padding:10px 12px; border-left:3px solid #d0d0d0; background:#f7f7f7; color:#555; }
-    .article-text ul { margin:0 0 12px 20px; padding:0; }
-    .article-text li { margin:4px 0; }
-    .article-text img { width:100%; border-radius:8px; margin:10px 0; background:#ddd; }
-    .article-text a { color:#576b95; text-decoration:none; }
-    .article-text code { font-family:"SF Mono","Menlo","Consolas",monospace; font-size:.9em; background:#f6f6f6; border-radius:4px; padding:1px 4px; color:#d14; }
-    .article-text pre { overflow:auto; margin:14px 0; padding:12px; border-radius:8px; background:#f6f8fa; color:#24292f; line-height:1.55; }
-    .article-text pre code { padding:0; background:transparent; color:inherit; }
-    .article-images { margin-top:12px; display:grid; gap:8px; }
-    .article-images img { width:100%; border-radius:8px; background:#ddd; }
+    .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:19px; --article-h2-size:17px; --article-h3-size:16px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.38; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:15px; --article-text-line-height:1.75; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; --article-markdown-border-top:1px solid #ededed; --article-markdown-padding-top:14px; }
+    ${articlePageCss}
     .list-scroll {
       overflow-y: auto;
       flex: 1;
@@ -602,7 +590,7 @@ export function renderWechatHubHtml(input) {
   </style>
   ${ui.theme === "iterms" ? `<style>
     [data-theme="iterms"] { --bg:#0a0d14; --panel:#0d1117; --text:#33ff66; --muted:#6aaa70; --line:#173020; --incoming:#141b22; --outgoing:#0e2a15; --green:#00ff41; --accent:#00ff41; --glow:0 0 6px rgba(0,255,65,0.45); }
-    [data-theme="iterms"] body { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
+    body[data-theme="iterms"] { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
     [data-theme="iterms"] .phone { background:var(--bg); border-color:#173020; }
     [data-theme="iterms"] .status-bar,[data-theme="iterms"] .top-nav { background:var(--panel); color:var(--text); border-color:var(--line); }
     [data-theme="iterms"] .list-scroll { background:#0a0d14; }
@@ -647,23 +635,8 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .article-modal { background:#05080d; border-color:#173020; }
     [data-theme="iterms"] .article-header { background:rgba(5,8,13,.96); border-color:var(--line); box-shadow:0 1px 0 #0f2b18; }
     [data-theme="iterms"] .article-back { color:var(--accent); }
-    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; }
-    [data-theme="iterms"] .article-title { color:#d7ffe0; text-shadow:var(--glow); border-bottom:1px solid var(--line); padding-bottom:10px; }
-    [data-theme="iterms"] .article-sub { color:var(--muted); }
-    [data-theme="iterms"] .article-cover { border:1px solid #1a4020; border-radius:2px; }
-    [data-theme="iterms"] .article-text { color:#d7ffe0; text-shadow:none; font-size:14px; line-height:1.7; }
-    [data-theme="iterms"] .article-tui { border-top:1px solid #173020; padding-top:14px; }
-    [data-theme="iterms"] .article-text h1,[data-theme="iterms"] .article-text h2,[data-theme="iterms"] .article-text h3 { color:#7CFF8F; text-shadow:none; border-bottom:1px solid #173020; padding-bottom:5px; }
-    [data-theme="iterms"] .article-text h1 { font-size:17px; }
-    [data-theme="iterms"] .article-text h2 { font-size:15px; }
-    [data-theme="iterms"] .article-text h3 { font-size:14px; }
-    [data-theme="iterms"] .article-text p { color:#d7ffe0; }
-    [data-theme="iterms"] .article-text blockquote { background:#0d1a12; border-left-color:#7CFF8F; color:#9eeaa7; }
-    [data-theme="iterms"] .article-text a { color:#7CFF8F; text-decoration:underline; text-underline-offset:3px; }
-    [data-theme="iterms"] .article-text code { background:#111820; border:1px solid #173020; border-radius:2px; color:#ffd866; }
-    [data-theme="iterms"] .article-text pre { background:#080c12; border:1px solid #173020; border-radius:2px; box-shadow:inset 0 0 0 1px rgba(0,255,65,.05); }
-    [data-theme="iterms"] .article-text pre code { border:none; color:#d7ffe0; }
-    [data-theme="iterms"] .article-text img,[data-theme="iterms"] .article-images img { border:1px solid var(--line); border-radius:2px; }
+    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; --article-body-bg:#08110b; --article-body-border:1px solid #173020; --article-body-radius:4px; --article-body-shadow:0 0 0 1px rgba(0,255,65,.05),0 18px 40px rgba(0,0,0,.45),inset 0 0 24px rgba(0,255,65,.03); --article-h1-size:17px; --article-h2-size:15px; --article-h3-size:14px; --article-heading-color:#7CFF8F; --article-heading-line-height:1.35; --article-heading-shadow:none; --article-heading-border:1px solid #173020; --article-heading-padding-bottom:5px; --article-title-letter-spacing:.02em; --article-sub-color:#86b98d; --article-sub-letter-spacing:.08em; --article-sub-transform:uppercase; --article-text-size:14px; --article-text-line-height:1.7; --article-text-color:#d7ffe0; --article-paragraph-color:#d7ffe0; --article-link-color:#7CFF8F; --article-link-decoration:underline; --article-link-underline-offset:3px; --article-code-font:"SF Mono","Menlo","Courier New",monospace; --article-code-bg:#111820; --article-code-border:1px solid #173020; --article-code-radius:2px; --article-code-color:#ffd866; --article-pre-bg:#080c12; --article-pre-border:1px solid #173020; --article-pre-radius:2px; --article-pre-color:#d7ffe0; --article-pre-shadow:inset 0 0 0 1px rgba(0,255,65,.05); --article-blockquote-bg:#0d1a12; --article-blockquote-border:#7CFF8F; --article-blockquote-color:#9eeaa7; --article-inline-image-bg:#0d1a12; --article-inline-image-border:1px solid var(--line); --article-page-image-bg:#0d1a12; --article-page-image-border:1px solid var(--line); --article-image-radius:2px; --article-markdown-bg:#07100a; --article-markdown-border:1px solid #132919; --article-markdown-border-top:1px solid #173020; --article-markdown-radius:2px; --article-markdown-shadow:inset 0 0 0 1px rgba(0,255,65,.03); --article-markdown-padding:14px 16px 16px; }
+    [data-theme="iterms"] .article-page-title { text-shadow:var(--glow); }
     [data-theme="iterms"] .end-tip { color:var(--muted); }
     [data-theme="iterms"] .recall-tip { color:var(--muted); }
     [data-theme="iterms"] .voice-icon { color:var(--accent); }
@@ -692,11 +665,11 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .account-avatar { border-radius:2px; }
     [data-theme="iterms"] .contacts-empty { color:var(--muted); }
     [data-theme="iterms"] .moments-empty { color:var(--muted); }
-    [data-theme="iterms"] .article-text blockquote { color:#a0e0a0; }
+    [data-theme="iterms"] .article-page-text blockquote { color:#a0e0a0; }
   </style>` : ""}
 </head>
-<body>
-  <main class="phone" data-theme="${escapeHtml(ui.theme)}">
+<body data-theme="${escapeHtml(ui.theme)}">
+  <main class="phone">
     <div class="status-bar">
       <div id="status-carrier">${escapeHtml(ui.statusBar.carrier)}</div>
       <div id="status-time">${escapeHtml(ui.statusBar.time)}</div>
@@ -770,11 +743,11 @@ export function renderWechatHubHtml(input) {
       <button id="article-back" class="article-back" type="button">返回</button>
     </header>
     <div class="article-body">
-      <h1 id="article-title" class="article-title"></h1>
-      <div id="article-sub" class="article-sub"></div>
-      <img id="article-cover" class="article-cover" src="" alt="cover"/>
-      <div id="article-text" class="article-text"></div>
-      <div id="article-images" class="article-images"></div>
+      <h1 id="article-title" class="article-page-title"></h1>
+      <div id="article-sub" class="article-page-sub"></div>
+      <img id="article-cover" class="article-page-cover" src="" alt="cover"/>
+      <div id="article-text" class="article-page-text"></div>
+      <div id="article-images" class="article-page-images"></div>
     </div>
   </aside>
 
@@ -917,29 +890,30 @@ export function renderWechatHubHtml(input) {
       for (const conv of (payload.conversations || [])) {
         if (!isVisibleByAccount(conv)) continue;
         const users = conv.profiles?.users || {};
-        for (const [id, user] of Object.entries(users)) {
-          if (!user || seen.has(id)) continue;
-          seen.add(id);
-          const moments = user.moments || {};
-          for (const moment of Object.values(moments)) {
-            if (!moment) continue;
-            const publishRaw = moment.publishAt || moment.time || "";
-            const day = toDayKey(publishRaw);
-            if (!day || day > stageDay) continue;
-            const author = resolveMomentAuthor(moment, user, users);
-            rows.push({
-              id: id + "-" + (moment.id || publishRaw || rows.length),
-              name: author.name || id,
-              nickName: author.nickName || author.name || id,
-              avatar: author.avatar || "",
-              bio: author.bio || "",
-              profileId: author.profileId || "",
-              text: String(moment.text || ""),
-              images: normalizeMomentImages(moment),
-              publishRaw: publishRaw,
-              dayKey: day
-            });
-          }
+        const user = users[activeAccountId];
+        if (!user) continue;
+        const moments = user.moments || {};
+        for (const moment of Object.values(moments)) {
+          if (!moment) continue;
+          const publishRaw = moment.publishAt || moment.time || "";
+          const momentKey = activeAccountId + "|" + (moment.id || publishRaw);
+          if (seen.has(momentKey)) continue;
+          const day = toDayKey(publishRaw);
+          if (!day || day > stageDay) continue;
+          seen.add(momentKey);
+          const author = resolveMomentAuthor(moment, user, users);
+          rows.push({
+            id: activeAccountId + "-" + (moment.id || publishRaw || rows.length),
+            name: author.name || activeAccountId,
+            nickName: author.nickName || author.name || activeAccountId,
+            avatar: author.avatar || "",
+            bio: author.bio || "",
+            profileId: author.profileId || "",
+            text: String(moment.text || ""),
+            images: normalizeMomentImages(moment),
+            publishRaw: publishRaw,
+            dayKey: day
+          });
         }
       }
       rows.sort((a, b) => String(b.publishRaw).localeCompare(String(a.publishRaw), "zh-CN"));
@@ -1026,6 +1000,21 @@ export function renderWechatHubHtml(input) {
           + text + imgWrap
           + '</article>';
       }).join('');
+    }
+
+    function enterAccountView() {
+      var user = null;
+      for (var i = 0; i < (payload.conversations || []).length; i += 1) {
+        var conv = payload.conversations[i];
+        if (conv && conv.profiles && conv.profiles.users && conv.profiles.users[activeAccountId]) {
+          user = conv.profiles.users[activeAccountId];
+          break;
+        }
+      }
+      var view = (user && user.defaultView) || 'chat';
+      if (view === 'doc') showContacts();
+      else if (view === 'social') showMoments();
+      else showChatList();
     }
 
     function showChatList() {
@@ -1307,6 +1296,15 @@ export function renderWechatHubHtml(input) {
         : Object.keys(user?.officialArticles || user?.articles || {});
     }
 
+    function articleKeyFromDoc(doc) {
+      if (!doc) return "";
+      var s = String(doc).trim();
+      if (!/\.(ya?ml)$/i.test(s)) return s;
+      var parts = s.split("/");
+      var base = parts[parts.length - 1];
+      return base.replace(/\.(ya?ml)$/i, "");
+    }
+
     function collectContentUnitsForAccount(accountId) {
       const units = new Map();
       for (const conv of (payload.conversations || [])) {
@@ -1331,13 +1329,14 @@ export function renderWechatHubHtml(input) {
           if (day) units.set("article|" + String(refId), { type: "article", day });
         }
 
-        for (const [id, user] of Object.entries(users)) {
-          const moments = user?.moments || {};
-          for (const moment of Object.values(moments)) {
+        const accountUser = users[accountId];
+        if (accountUser) {
+          const moments = accountUser.moments || {};
+          for (const [key, moment] of Object.entries(moments)) {
             const publishRaw = moment?.publishAt || moment?.time || "";
             const day = toDayKey(publishRaw);
             if (!day) continue;
-            units.set("moment|" + id + "|" + (moment.id || publishRaw), { type: "moment", day });
+            units.set("moment|" + accountId + "|" + (moment.id || publishRaw), { type: "moment", day });
           }
         }
       }
@@ -1485,7 +1484,12 @@ export function renderWechatHubHtml(input) {
         return ('[名片] ' + (raw.name || refName || "")).trim();
       }
       if (message.kind === "link-card") {
-        const title = message.linkCard?.title || message.linkCard?.url || "链接";
+        const doc = (message.linkCard && (message.linkCard.doc || message.linkCard.ref)) || "";
+        if (doc) {
+          const title = (message.linkCard && message.linkCard.title) || doc;
+          return "[文档] " + title;
+        }
+        const title = (message.linkCard && message.linkCard.title) || (message.linkCard && message.linkCard.url) || "链接";
         return "[链接] " + title;
       }
       const txt = String(message.text || "").replace(/\s+/g, " ").trim();
@@ -1663,109 +1667,7 @@ export function renderWechatHubHtml(input) {
     function formatText(text) {
       return mentionify(linkify(emojify(text || '')));
     }
-    function safeMarkdownUrl(raw) {
-      const value = String(raw || "").trim();
-      if (/^(https?:)?\\/\\//i.test(value) || value.startsWith("/") || value.startsWith("./") || value.startsWith("../")) return value;
-      return "#";
-    }
-    function renderMarkdownInline(raw) {
-      let html = esc(raw || "");
-      html = html.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
-      html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, (_m, alt, url) => (
-        '<img src="' + esc(safeMarkdownUrl(url)) + '" alt="' + esc(alt) + '"/>'
-      ));
-      html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (_m, text, url) => (
-        '<a href="' + esc(safeMarkdownUrl(url)) + '" target="_blank" rel="noreferrer">' + text + '</a>'
-      ));
-      html = html.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
-      html = html.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
-      return html;
-    }
-    function renderMarkdown(markdown) {
-      const lines = String(markdown || "").replace(/\\r\\n/g, "\\n").split("\\n");
-      const html = [];
-      let paragraph = [];
-      let list = [];
-      let quote = [];
-      let code = [];
-      let inCode = false;
-      function flushParagraph() {
-        if (!paragraph.length) return;
-        html.push('<p>' + renderMarkdownInline(paragraph.join(" ")) + '</p>');
-        paragraph = [];
-      }
-      function flushList() {
-        if (!list.length) return;
-        html.push('<ul>' + list.map((item) => '<li>' + renderMarkdownInline(item) + '</li>').join('') + '</ul>');
-        list = [];
-      }
-      function flushQuote() {
-        if (!quote.length) return;
-        html.push('<blockquote>' + quote.map((line) => '<p>' + renderMarkdownInline(line) + '</p>').join('') + '</blockquote>');
-        quote = [];
-      }
-      function flushAll() {
-        flushParagraph();
-        flushList();
-        flushQuote();
-      }
-      function flushCode() {
-        if (!code.length) return;
-        html.push('<pre><code>' + esc(code.join("\\n")) + '</code></pre>');
-        code = [];
-      }
-      for (const rawLine of lines) {
-        if (rawLine.trim().startsWith('\\x60\\x60\\x60')) {
-          if (inCode) {
-            flushCode();
-            inCode = false;
-          } else {
-            flushAll();
-            inCode = true;
-          }
-          continue;
-        }
-        if (inCode) {
-          code.push(rawLine);
-          continue;
-        }
-        const line = rawLine.trim();
-        if (!line) {
-          flushAll();
-          continue;
-        }
-        const heading = line.match(/^(#{1,3})\\s+(.+)$/);
-        if (heading) {
-          flushAll();
-          const level = heading[1].length;
-          html.push('<h' + level + '>' + renderMarkdownInline(heading[2]) + '</h' + level + '>');
-          continue;
-        }
-        if (/^>\\s?/.test(line)) {
-          flushParagraph();
-          flushList();
-          quote.push(line.replace(/^>\\s?/, ""));
-          continue;
-        }
-        if (/^[-*]\\s+/.test(line)) {
-          flushParagraph();
-          flushQuote();
-          list.push(line.replace(/^[-*]\\s+/, ""));
-          continue;
-        }
-        if (/^!\\[[^\\]]*\\]\\([^)]+\\)$/.test(line)) {
-          flushAll();
-          html.push(renderMarkdownInline(line));
-          continue;
-        }
-        flushList();
-        flushQuote();
-        paragraph.push(line);
-      }
-      flushAll();
-      flushCode();
-      return '<div class="article-tui">' + html.join('') + '</div>';
-    }
+${articleMarkdownRuntimeSource()}
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
@@ -1869,6 +1771,35 @@ export function renderWechatHubHtml(input) {
       }
       if (msg.kind === 'link-card') {
         const c = msg.linkCard || {};
+        const doc = (c.doc || c.ref || "").trim();
+        if (doc) {
+          const articleKey = articleKeyFromDoc(doc);
+          const repo = conv.articles || {};
+          const fromRepo = repo[articleKey] || {};
+          const a = {
+            title: fromRepo.title || c.title || articleKey,
+            author: fromRepo.author || "",
+            publishRaw: fromRepo.publishAt || "",
+            cover: fromRepo.cover || "",
+            summary: fromRepo.summary || c.desc || c.summary || "",
+            text: fromRepo.markdown || fromRepo.body || fromRepo.text || "",
+            images: Array.isArray(fromRepo.images) ? fromRepo.images : []
+          };
+          const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
+          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+          return '<button class="article-card" type="button"'
+            + ' data-title="' + esc(a.title || '') + '"'
+            + ' data-author="' + esc(a.author || '') + '"'
+            + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
+            + ' data-cover="' + esc(a.cover || '') + '"'
+            + ' data-text="' + esc(a.text || '') + '"'
+            + ' data-images="' + esc((a.images || []).join(",")) + '"'
+            + '>'
+            + '<div class="article-title">' + esc(a.title || '文档') + '</div>'
+            + '<div class="article-meta">' + esc(a.author || '') + '</div>'
+            + cover + summary
+            + '</button>';
+        }
         return '<a class="card" href="' + esc(c.url || '#') + '" target="_blank" rel="noreferrer">'
           + '<div class="card-title">' + esc(c.title || c.url || '链接') + '</div>'
           + '<div class="card-desc">' + esc(c.desc || '') + '</div>'
@@ -2160,7 +2091,7 @@ export function renderWechatHubHtml(input) {
           accountNoticeMap[activeAccountId] = false;
           initTimelineStages();
           saveSeen();
-          showChatList();
+          enterAccountView();
           clearTimer();
           renderList();
         });
@@ -2271,7 +2202,7 @@ export function renderWechatHubHtml(input) {
     loadSeen();
     initAccounts();
     initTimelineStages();
-    showChatList();
+    enterAccountView();
     renderList();
     heartbeatEngine.start();
     document.addEventListener('click', function resumeHeartbeat() {
@@ -2391,7 +2322,7 @@ export function renderWechatStoryHtml(input) {
     .profile-item { font-size:13px; color:#444; line-height:1.45; margin-top:4px; word-break:break-word; }
     .profile-close { margin-top:12px; width:100%; border:none; border-radius:8px; background:#f2f2f2; padding:8px 0; cursor:pointer; }
     [data-theme="iterms"] { --bg:#0a0d14; --panel:#0d1117; --text:#33ff66; --muted:#6aaa70; --line:#173020; --incoming:#141b22; --outgoing:#0e2a15; --green:#00ff41; --accent:#00ff41; --glow:0 0 6px rgba(0,255,65,0.45); }
-    [data-theme="iterms"] body { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
+    body[data-theme="iterms"] { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
     [data-theme="iterms"] .phone { background:var(--bg); border-color:#173020; }
     [data-theme="iterms"] .status-bar,[data-theme="iterms"] .top-nav { background:var(--panel); color:var(--text); border-color:var(--line); }
     [data-theme="iterms"] .list-scroll { background:#0a0d14; }
@@ -2583,6 +2514,14 @@ export function renderWechatStoryHtml(input) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
     }
+    function articleKeyFromDoc(doc) {
+      if (!doc) return "";
+      var s = String(doc).trim();
+      if (!/\.(ya?ml)$/i.test(s)) return s;
+      var parts = s.split("/");
+      var base = parts[parts.length - 1];
+      return base.replace(/\.(ya?ml)$/i, "");
+    }
     function setVoiceState(btn, playing) {
       if (!btn) return;
       const icon = btn.querySelector('.voice-icon');
@@ -2726,6 +2665,33 @@ export function renderWechatStoryHtml(input) {
       }
       if (msg.kind === 'link-card') {
         const c = msg.linkCard || {};
+        const doc = (c.doc || c.ref || "").trim();
+        if (doc) {
+          const articleKey = articleKeyFromDoc(doc);
+          const repo = conv.articles || {};
+          const fromRepo = repo[articleKey] || {};
+          const a = {
+            title: fromRepo.title || c.title || articleKey,
+            author: fromRepo.author || "",
+            cover: fromRepo.cover || "",
+            summary: fromRepo.summary || c.desc || c.summary || "",
+            text: fromRepo.markdown || fromRepo.body || fromRepo.text || "",
+            images: Array.isArray(fromRepo.images) ? fromRepo.images : []
+          };
+          const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
+          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+          return '<button class="article-card" type="button"'
+            + ' data-title="' + esc(a.title || '') + '"'
+            + ' data-author="' + esc(a.author || '') + '"'
+            + ' data-cover="' + esc(a.cover || '') + '"'
+            + ' data-text="' + esc(a.text || '') + '"'
+            + ' data-images="' + esc((a.images || []).join(",")) + '"'
+            + '>'
+            + '<div class="article-title">' + esc(a.title || '文档') + '</div>'
+            + '<div class="article-meta">' + esc(a.author || '') + '</div>'
+            + cover + summary
+            + '</button>';
+        }
         return '<a class="card" href="' + esc(c.url || '#') + '" target="_blank" rel="noreferrer">'
           + '<div class="card-title">' + esc(c.title || c.url || '链接') + '</div>'
           + '<div class="card-desc">' + esc(c.desc || '') + '</div>'

@@ -170,16 +170,15 @@ function formatVoiceDuration(sec) {
   return n > 0 ? `${n}"` : "语音";
 }
 
-/**
- * Render quote block HTML.
- *
- * @param {{ senderId?: string, timeText?: string, snippet?: string }} q - Quote metadata.
- * @param {{ users: Record<string, { name?: string }> }} profiles - Profile dictionary.
- * @returns {string} Quote HTML.
- *
- * @example
- * renderQuote({ senderId:'alice', snippet:'hello' }, profiles)
- */
+function articleKeyFromDoc(doc) {
+  if (!doc) return "";
+  const s = String(doc).trim();
+  if (!/\.(ya?ml)$/i.test(s)) return s;
+  const parts = s.split("/");
+  const base = parts[parts.length - 1];
+  return base.replace(/\.(ya?ml)$/i, "");
+}
+
 function resolveEffectiveProfileName(user) {
   if (user.name) return user.name;
   const timeline = Array.isArray(user.identityTimeline) ? user.identityTimeline : [];
@@ -258,6 +257,33 @@ function renderContent(m, ctx) {
   }
   if (m.kind === "link-card") {
     const c = m.linkCard || {};
+    const doc = (c.doc || c.ref || "").trim();
+    if (doc) {
+      const articleKey = articleKeyFromDoc(doc);
+      const fromRepo = ctx.articles?.[articleKey] || {};
+      const a = {
+        title: fromRepo.title || c.title || articleKey,
+        author: fromRepo.author || "",
+        cover: fromRepo.cover || "",
+        summary: fromRepo.summary || c.desc || c.summary || "",
+        text: fromRepo.text || "",
+        images: Array.isArray(fromRepo.images) ? fromRepo.images : [],
+        publishAt: fromRepo.publishAt || ""
+      };
+      const cover = a.cover ? `<img class="article-cover" src="${escapeHtml(a.cover)}" alt="cover"/>` : "";
+      const summary = a.summary ? `<div class="article-summary">${formatText(a.summary)}</div>` : "";
+      return `<button class="article-card" type="button"
+        data-title="${escapeHtml(a.title || "")}"
+        data-author="${escapeHtml(a.author || "")}"
+        data-cover="${escapeHtml(a.cover || "")}"
+        data-text="${escapeHtml(a.text || "")}"
+        data-images="${escapeHtml((a.images || []).join(","))}">
+        <div class="article-title">${escapeHtml(a.title || "文档")}</div>
+        <div class="article-meta">${escapeHtml(a.author || "")}</div>
+        ${cover}
+        ${summary}
+      </button>`;
+    }
     return `<a class="card" href="${escapeHtml(c.url || "#")}" target="_blank" rel="noreferrer">
       <div class="card-title">${escapeHtml(c.title || c.url || "链接")}</div>
       <div class="card-desc">${escapeHtml(c.desc || "")}</div>

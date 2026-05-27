@@ -19,6 +19,11 @@ title: 交互草图
 site: example.com
 desc: 原型里有会话列表和详情页切换。
 
+@alice #g4b [+30s] [link-card]
+doc: ./articles/multi-bob-a1.yml
+site: 文档
+desc: 聊天回放性能优化笔记，点击查看全文
+
 @alice #g5 [+1m] [image]
 https://picsum.photos/seed/room-wire/460/320
 

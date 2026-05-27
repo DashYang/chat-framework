@@ -179,7 +179,7 @@ function toLinkCard(body) {
     const v = line.slice(idx + 1).trim();
     if (k) card[k] = v;
   }
-  if (!card.url) throw new Error("[link-card] message requires url");
+  if (!card.url && !card.doc && !card.ref) throw new Error("[link-card] message requires url or doc (document path)");
   return card;
 }
 

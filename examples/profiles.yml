@@ -1,3 +1,7 @@
+# defaultView (optional): the first page after entering an account.
+#   "chat" (default) — conversation list
+#   "doc"  — official articles / document feed
+#   "social" — moments / social feed
 users:
   alice:
     name: "Alice"
@@ -7,7 +11,9 @@ users:
     name: "Bob"
     avatar: "https://picsum.photos/seed/bob/100/100"
     bio: "前端工程师"
+    defaultView: "social"
   clara:
     name: "Clara"
     avatar: "https://picsum.photos/seed/clara/100/100"
     bio: "设计师"
+    defaultView: "doc"
