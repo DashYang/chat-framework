@@ -494,6 +494,7 @@ export function renderWechatHubHtml(input) {
     .account-center { padding:26px 16px 10px; text-align:center; color:#222; font-size:18px; }
     .account-list-wrap { padding:8px 12px 84px; overflow-y:auto; flex:1; min-height:0; }
     .account-card { width:100%; border:none; background:#fff; border-radius:10px; padding:14px 12px; margin-bottom:10px; display:flex; align-items:center; gap:10px; text-align:left; cursor:pointer; }
+    .account-card.active { background:#f1fbf5; box-shadow:inset 0 0 0 2px rgba(7,193,96,.22); }
     .account-avatar { width:52px; height:52px; border-radius:6px; object-fit:cover; background:#ddd; }
     .account-name { font-size:16px; color:#222; line-height:1.2; }
     .account-current { margin-left:auto; font-size:14px; color:#07c160; white-space:nowrap; }
@@ -658,6 +659,7 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .account-back { color:var(--accent); }
     [data-theme="iterms"] .account-center { color:var(--text); }
     [data-theme="iterms"] .account-card { background:#0d1117; border:1px solid #142018; color:var(--text); }
+    [data-theme="iterms"] .account-card.active { background:#0d1a12; border-color:var(--accent); box-shadow:inset 0 0 0 1px rgba(0,255,65,.35), 0 0 8px rgba(0,255,65,.12); }
     [data-theme="iterms"] .account-card:hover { background:#0d1a12; }
     [data-theme="iterms"] .account-name { color:var(--text); }
     [data-theme="iterms"] .account-current { color:var(--accent); }
@@ -1026,6 +1028,7 @@ export function renderWechatHubHtml(input) {
       tabChat.classList.add('active');
       tabContacts.classList.remove('active');
       tabMoments.classList.remove('active');
+      tabMe.classList.remove('active');
       renderList();
       updateUnreadBadges();
     }
@@ -1040,6 +1043,7 @@ export function renderWechatHubHtml(input) {
       tabChat.classList.remove('active');
       tabContacts.classList.remove('active');
       tabMoments.classList.add('active');
+      tabMe.classList.remove('active');
       renderMoments();
       const seen = getMomentSeen(currentStageMs());
       for (const m of collectMoments()) seen[m.id] = true;
@@ -1159,6 +1163,7 @@ export function renderWechatHubHtml(input) {
       tabChat.classList.remove('active');
       tabContacts.classList.add('active');
       tabMoments.classList.remove('active');
+      tabMe.classList.remove('active');
       renderContacts();
       const seen = getArticleSeen(currentStageMs());
       for (const a of articleRows) seen[a.id] = true;
@@ -2078,8 +2083,9 @@ ${articleMarkdownRuntimeSource()}
         const rawStageIndex = Number(stageIndexMap[id] || 0);
         const stageDay = stageDays.length ? stageDays[Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageDays.length - 1))] : currentStageMs();
         const avatar = resolveEffectiveProfile(user, stageDay).avatar || user.avatar || "";
-        const current = id === activeAccountId ? '<div class="account-current">● 当前使用</div>' : '';
-        return '<button class="account-card" type="button" data-id="' + esc(id) + '">'
+        const isCurrent = id === activeAccountId;
+        const current = isCurrent ? '<div class="account-current">● 当前使用</div>' : '';
+        return '<button class="account-card' + (isCurrent ? ' active' : '') + '" type="button" data-id="' + esc(id) + '">'
           + '<img class="account-avatar" src="' + esc(avatar) + '" alt="avatar"/>'
           + '<div><div class="account-name">' + esc(name) + '</div></div>'
           + current
@@ -2118,6 +2124,10 @@ ${articleMarkdownRuntimeSource()}
       contactsView.style.display = 'none';
       detailView.style.display = 'none';
       accountView.style.display = 'flex';
+      tabChat.classList.remove('active');
+      tabContacts.classList.remove('active');
+      tabMoments.classList.remove('active');
+      tabMe.classList.add('active');
       updateStatusProgress("accounts");
     }
 
