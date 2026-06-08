@@ -571,7 +571,7 @@ export function renderWechatHubHtml(input) {
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
     .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { width:min(220px); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card { width:min(220px,100%); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
     .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
     .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
@@ -2314,7 +2314,7 @@ export function renderWechatStoryHtml(input) {
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
     .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { width:min(220px); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .contact-card { width:min(220px,100%); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
     .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
     .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
