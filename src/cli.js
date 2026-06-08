@@ -13,15 +13,51 @@ const __dirname = path.dirname(__filename);
 //   build -> relative frontmatter paths (profiles/chat/articles) resolve from the markdown file directory
 //   build:folder -> profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from inputDir
 
+function printHelp() {
+  console.log(`chat-framework
+
+Usage:
+  chat-framework build <input.md> <output.html>
+  chat-framework build:folder <input-folder> <output.html>
+  chat-framework build-folder <input-folder> <output.html>
+  chat-framework help
+
+Commands:
+  build         Build a single chat markdown file into an HTML page.
+  build:folder  Build a conversation hub from a folder project.
+  build-folder  Alias for build:folder.
+  help          Show this help message.
+
+Path semantics:
+  build         Relative frontmatter paths such as profiles, chat, and articles
+                resolve from the input markdown file's directory.
+  build:folder  profiles/, profiles.yml, articles/, ui.yml, story.yml,
+                chatFiles, and groupChats resolve from the input folder.
+
+Local install:
+  cd /Users/dash/workspace/chat-framework
+  npm link
+
+Notes:
+  npm link creates a symlink to this project. After updating chat-framework,
+  the global command uses the latest local code; you do not need to link again.`);
+}
+
 async function run() {
   const argv = process.argv.slice(2);
   const cmd = argv[0];
   try {
+    if (!cmd || cmd === "help" || cmd === "--help" || cmd === "-h") {
+      printHelp();
+      return;
+    }
+
     if (cmd === "build") {
       const [_, input, output] = argv;
       if (!input || !output) {
         console.error("Usage: chat-framework build <input.md> <output.html>");
         console.error("Single-file root semantics: relative frontmatter paths such as profiles, chat, and articles resolve from the input markdown file's directory.");
+        console.error("Run chat-framework help for more details.");
         process.exit(1);
       }
       const { default: buildModule } = await import(path.join(__dirname, "build.js"));
@@ -45,6 +81,7 @@ async function run() {
       if (!input || !output) {
         console.error("Usage: chat-framework build:folder <input-folder> <output.html>");
         console.error("Folder-build root semantics: profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from the provided inputDir.");
+        console.error("Run chat-framework help for more details.");
         process.exit(1);
       }
       const mod = await import(path.join(__dirname, "build-folder.js"));
@@ -56,7 +93,8 @@ async function run() {
       return;
     }
 
-    console.error('Unknown command. Available: build, build:folder');
+    console.error(`Unknown command: ${cmd}`);
+    printHelp();
     process.exit(1);
   } catch (err) {
     console.error(err && err.message ? err.message : String(err));

@@ -48,7 +48,10 @@ function nextAutoMessageId(usedIds, autoIdRef) {
 }
 
 function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, bodyText, idRaw) {
-  if (!bodyText.trim()) return;
+  if (!bodyText.trim()) {
+    if (tags.includes("status")) throw new Error("[status] message requires text");
+    return;
+  }
 
   let id = idRaw;
   if (!id) {
@@ -78,6 +81,9 @@ function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tag
   }
   if (tags.includes("contact-card")) {
     msg = { ...msg, kind: "contact-card", contactCard: toContactCard(bodyText), text: undefined };
+  }
+  if (tags.includes("status")) {
+    msg = { ...msg, kind: "status", text: bodyText.trim() };
   }
   const quoteTag = tags.find((t) => t.startsWith("quote:"));
   if (quoteTag) {
@@ -150,12 +156,13 @@ function buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw,
  * @example
  * parseFrontmatter('---\ntitle: "A"\n---\n@u #m1 [2026-01-01 10:00]\nhi')
  */
-function parseFrontmatter(raw) {
-  if (!raw.startsWith("---\n")) return { frontmatter: {}, body: raw };
-  const end = raw.indexOf("\n---\n", 4);
-  if (end === -1) throw new Error("Frontmatter not closed with ---");
-  const fm = raw.slice(4, end);
-  const body = raw.slice(end + 5);
+export function parseFrontmatter(raw) {
+  const normalized = String(raw || "").replace(/\r\n/g, "\n");
+  if (!normalized.startsWith("---\n")) return { frontmatter: {}, body: raw };
+  const match = normalized.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
+  if (!match) throw new Error("Frontmatter not closed with ---");
+  const fm = match[1];
+  const body = normalized.slice(match[0].length);
   return { frontmatter: parseSimpleYaml(fm), body };
 }
 

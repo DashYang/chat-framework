@@ -7,3 +7,4 @@ ui:
   # 可选 "iterms"（绿黑终端风格）
   theme: "wechat"
   persistKey: "room_wechat_seen_v1"
+  # debug: true

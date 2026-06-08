@@ -138,6 +138,7 @@ export function resolveQuotes(messages) {
 
     let snippet = "";
     if (target.kind === "text") snippet = (target.text || "").slice(0, 80);
+    if (target.kind === "status") snippet = (target.text || "").slice(0, 80);
     if (target.kind === "image") {
       snippet = target.text ? `[图片] ${target.text.slice(0, 40)}` : "[图片]";
     }

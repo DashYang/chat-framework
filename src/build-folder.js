@@ -3,6 +3,7 @@ import path from "path";
 import { loadConversationFromMarkdown, loadProfiles } from "./load-conversation.js";
 import { buildConversationModels, renderWechatHubHtml } from "./multi-renderer.js";
 import { parseSimpleYaml } from "./yaml.js";
+import { createBuildReport, formatBuildReport } from "./build-report.js";
 
 /**
  * List markdown files in a folder (non-recursive).
@@ -58,11 +59,13 @@ export function buildFolder(inputDir, outputHtml) {
   const ui = loadUiConfig(inputDir);
   const story = loadStoryConfig(inputDir);
   const html = renderWechatHubHtml({ title, conversations: models, ui, story });
+  const report = createBuildReport({ conversations, ui, story });
 
   fs.mkdirSync(path.dirname(outputHtml), { recursive: true });
   fs.writeFileSync(outputHtml, html, "utf-8");
   console.log(`Built: ${outputHtml}`);
   console.log(`Loaded conversations: ${conversations.length}`);
+  console.log(formatBuildReport(report));
 }
 
 function findProfilesPath(inputDir) {
@@ -89,12 +92,12 @@ function collectConversationEntriesFromProfiles(inputDir, profiles) {
       if (!rel) continue;
       const mdPath = path.resolve(inputDir, rel);
       if (!fs.existsSync(mdPath)) {
-        throw new Error(`[profile:${profileId}] chat file not found: ${rel}`);
+        throw new Error(`[profile:${profileId}] chat file not found: ${rel}. Fix: check profile.chatFiles path relative to the build input folder.`);
       }
       const mapped = groupChats[rel] || groupChats[path.basename(rel)] || "";
       const chatPath = mapped ? path.resolve(inputDir, String(mapped)) : "";
       if (chatPath && !fs.existsSync(chatPath)) {
-        throw new Error(`[profile:${profileId}] group chat yml not found: ${mapped}`);
+        throw new Error(`[profile:${profileId}] group chat yml not found: ${mapped}. Fix: check profile.groupChats mapping, or remove it for single chats.`);
       }
       rows.push({ mdPath, selfId: profileId, chatPath, articlesPath: findArticlesPath(inputDir) });
     }

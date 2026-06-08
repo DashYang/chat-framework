@@ -1,4 +1,4 @@
-import { articlePageCss, articleMarkdownRuntimeSource } from "./article-markdown.js";
+import { articlePageCss, articleMarkdownRuntimeSource, imageViewerCss, imageViewerRuntimeSource } from "./article-markdown.js";
 
 /**
  * Escape HTML special chars.
@@ -30,6 +30,7 @@ function escapeHtml(s = "") {
 function toSnippet(message, articles, profiles) {
   if (!message) return "";
   if (message.recall) return "[消息已撤回]";
+  if (message.kind === "status") return String(message.text || "").replace(/\s+/g, " ").trim();
   if (message.kind === "image") return "[图片]";
   if (message.kind === "voice") return `[语音] ${message.durationSec ? `${message.durationSec}"` : ""}`.trim();
   if (message.kind === "article-card") {
@@ -253,7 +254,8 @@ function normalizeUi(ui) {
     },
     topTitle: source.topTitle || "微信",
     theme: source.theme || "wechat",
-    persistKey: source.persistKey || "chat_framework_seen_v1"
+    persistKey: source.persistKey || "chat_framework_seen_v1",
+    debug: source.debug === true
   };
 }
 
@@ -395,7 +397,9 @@ export function renderWechatHubHtml(input) {
       padding: 10px 10px 84px;
     }
     .contacts-empty { font-size:13px; color:#8b8b8b; text-align:center; padding:30px 0; }
-    .oa-card { background:#fff; border-radius:10px; padding:12px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+    .oa-card { position:relative; background:#fff; border-radius:10px; padding:12px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+    .oa-unread-dot { position:absolute; top:12px; right:12px; width:8px; height:8px; border-radius:50%; background:#ff3b30; box-shadow:0 0 0 2px #fff; }
+    .oa-card.unread .oa-title { padding-right:18px; }
     .oa-title { font-size:16px; font-weight:600; line-height:1.35; }
     .oa-meta { margin-top:6px; font-size:12px; color:#8f8f8f; }
     .oa-cover { width:100%; margin-top:10px; border-radius:8px; object-fit:cover; max-height:180px; background:#ddd; }
@@ -407,6 +411,7 @@ export function renderWechatHubHtml(input) {
     .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
     .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:19px; --article-h2-size:17px; --article-h3-size:16px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.38; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:15px; --article-text-line-height:1.75; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; --article-markdown-border-top:1px solid #ededed; --article-markdown-padding-top:14px; }
     ${articlePageCss}
+    ${imageViewerCss}
     .list-scroll {
       overflow-y: auto;
       flex: 1;
@@ -499,6 +504,8 @@ export function renderWechatHubHtml(input) {
     .account-name { font-size:16px; color:#222; line-height:1.2; }
     .account-current { margin-left:auto; font-size:14px; color:#07c160; white-space:nowrap; }
     .account-reset { width:100%; border:none; background:#fff; border-radius:10px; padding:14px 12px; margin-top:10px; text-align:center; cursor:pointer; color:#d93025; font-size:16px; }
+    .unlock-toast { position:absolute; left:14px; right:14px; top:34px; z-index:75; min-height:38px; padding:9px 12px; border-radius:8px; background:rgba(255,255,255,.96); color:#222; box-shadow:0 8px 24px rgba(0,0,0,.16); border:1px solid rgba(0,0,0,.08); display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1.35; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+    .unlock-toast.show { opacity:1; transform:translateY(0); }
     .detail-view {
       display: none;
       flex-direction: column;
@@ -578,7 +585,7 @@ export function renderWechatHubHtml(input) {
     .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); word-break:break-word; }
     .contact-bio { margin-top:6px; font-size:12px; color:#4c4c4c; line-height:1.35; white-space:normal; word-break:break-word; }
     .inline-link { color: #576b95; }
-    .mention { color: #576b95; font-weight: 600; }
+    .mention { display:inline-block; padding:0 5px; border-radius:5px; color:#576b95; background:rgba(87,107,149,.14); border:1px solid rgba(87,107,149,.22); font-weight:700; line-height:1.25; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
     .end-tip { font-size: 12px; color: var(--muted); text-align: center; margin: 16px 0 4px; }
     .profile-modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.35); z-index: 20; }
     .profile-modal.show { display: flex; }
@@ -626,7 +633,7 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .contact-nick { color:var(--muted); }
     [data-theme="iterms"] .contact-avatar { border-radius:2px; }
     [data-theme="iterms"] .inline-link { color:var(--accent); }
-    [data-theme="iterms"] .mention { color:var(--accent); text-shadow:0 0 4px rgba(0,255,65,0.4); }
+    [data-theme="iterms"] .mention { color:#7CFF8F; background:rgba(0,255,65,.14); border:1px solid rgba(0,255,65,.38); border-radius:5px; font-weight:700; text-shadow:0 0 5px rgba(0,255,65,0.5); }
     [data-theme="iterms"] .profile-modal { background:rgba(0,8,5,.75); }
     [data-theme="iterms"] .profile-card { background:#0a1016; border:1px solid var(--line); box-shadow:0 0 20px rgba(0,255,65,.15); border-radius:4px; }
     [data-theme="iterms"] .profile-name { color:var(--accent); text-shadow:var(--glow); }
@@ -636,8 +643,8 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .article-modal { background:#05080d; border-color:#173020; }
     [data-theme="iterms"] .article-header { background:rgba(5,8,13,.96); border-color:var(--line); box-shadow:0 1px 0 #0f2b18; }
     [data-theme="iterms"] .article-back { color:var(--accent); }
-    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; --article-body-bg:#08110b; --article-body-border:1px solid #173020; --article-body-radius:4px; --article-body-shadow:0 0 0 1px rgba(0,255,65,.05),0 18px 40px rgba(0,0,0,.45),inset 0 0 24px rgba(0,255,65,.03); --article-h1-size:17px; --article-h2-size:15px; --article-h3-size:14px; --article-heading-color:#7CFF8F; --article-heading-line-height:1.35; --article-heading-shadow:none; --article-heading-border:1px solid #173020; --article-heading-padding-bottom:5px; --article-title-letter-spacing:.02em; --article-sub-color:#86b98d; --article-sub-letter-spacing:.08em; --article-sub-transform:uppercase; --article-text-size:14px; --article-text-line-height:1.7; --article-text-color:#d7ffe0; --article-paragraph-color:#d7ffe0; --article-link-color:#7CFF8F; --article-link-decoration:underline; --article-link-underline-offset:3px; --article-code-font:"SF Mono","Menlo","Courier New",monospace; --article-code-bg:#111820; --article-code-border:1px solid #173020; --article-code-radius:2px; --article-code-color:#ffd866; --article-pre-bg:#080c12; --article-pre-border:1px solid #173020; --article-pre-radius:2px; --article-pre-color:#d7ffe0; --article-pre-shadow:inset 0 0 0 1px rgba(0,255,65,.05); --article-blockquote-bg:#0d1a12; --article-blockquote-border:#7CFF8F; --article-blockquote-color:#9eeaa7; --article-inline-image-bg:#0d1a12; --article-inline-image-border:1px solid var(--line); --article-page-image-bg:#0d1a12; --article-page-image-border:1px solid var(--line); --article-image-radius:2px; --article-markdown-bg:#07100a; --article-markdown-border:1px solid #132919; --article-markdown-border-top:1px solid #173020; --article-markdown-radius:2px; --article-markdown-shadow:inset 0 0 0 1px rgba(0,255,65,.03); --article-markdown-padding:14px 16px 16px; }
-    [data-theme="iterms"] .article-page-title { text-shadow:var(--glow); }
+    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; --article-body-bg:#05080d; --article-body-border:1px solid #173020; --article-body-radius:2px; --article-body-shadow:inset 0 0 0 1px rgba(124,255,143,.04),0 14px 32px rgba(0,0,0,.38); --article-h1-size:18px; --article-h2-size:16px; --article-h3-size:15px; --article-heading-color:#7CFF8F; --article-heading-line-height:1.35; --article-heading-shadow:none; --article-heading-border:1px solid #18351f; --article-heading-padding-bottom:5px; --article-title-letter-spacing:0; --article-sub-color:#78977e; --article-sub-letter-spacing:.04em; --article-sub-transform:uppercase; --article-text-size:14px; --article-text-line-height:1.72; --article-text-color:#c9f5d1; --article-paragraph-color:#c9f5d1; --article-link-color:#7CFF8F; --article-link-decoration:underline; --article-link-underline-offset:3px; --article-code-font:"SF Mono","Menlo","Courier New",monospace; --article-code-bg:#101823; --article-code-border:1px solid #203444; --article-code-radius:2px; --article-code-color:#ffd866; --article-pre-bg:#03070a; --article-pre-border:1px solid #18351f; --article-pre-radius:2px; --article-pre-color:#d7ffe0; --article-pre-shadow:inset 0 0 0 1px rgba(124,255,143,.04); --article-blockquote-bg:#09160f; --article-blockquote-border:#6ee7b7; --article-blockquote-color:#a8d8b0; --article-hr-color:#173020; --article-del-color:#78977e; --article-table-border:#173020; --article-table-head-bg:#0b1710; --article-table-cell-bg:#050a07; --article-inline-image-bg:#07100a; --article-inline-image-border:1px solid #214b2c; --article-page-image-bg:#07100a; --article-page-image-border:1px solid #214b2c; --article-image-radius:2px; --article-markdown-bg:#07100a; --article-markdown-border:1px solid #132919; --article-markdown-border-top:1px solid #173020; --article-markdown-radius:2px; --article-markdown-shadow:inset 0 0 0 1px rgba(124,255,143,.03); --article-markdown-padding:14px 16px 16px; }
+    [data-theme="iterms"] .article-page-title { text-shadow:none; }
     [data-theme="iterms"] .end-tip { color:var(--muted); }
     [data-theme="iterms"] .recall-tip { color:var(--muted); }
     [data-theme="iterms"] .voice-icon { color:var(--accent); }
@@ -650,6 +657,7 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .moment-images img { border:1px solid var(--line); }
     [data-theme="iterms"] .contacts-view { background:#0a0d14; }
     [data-theme="iterms"] .oa-card { background:#0d1117; border:1px solid var(--line); }
+    [data-theme="iterms"] .oa-unread-dot { box-shadow:0 0 0 2px #0d1117, 0 0 8px rgba(255,59,48,0.7); }
     [data-theme="iterms"] .oa-title { color:var(--text); text-shadow:0 0 4px rgba(0,255,65,0.3); }
     [data-theme="iterms"] .oa-meta { color:var(--muted); }
     [data-theme="iterms"] .oa-desc { color:var(--text); }
@@ -665,9 +673,10 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .account-current { color:var(--accent); }
     [data-theme="iterms"] .account-reset { background:#0d1117; border:1px solid #142018; color:#ff3b30; }
     [data-theme="iterms"] .account-avatar { border-radius:2px; }
+    [data-theme="iterms"] .unlock-toast { background:rgba(5,8,13,.96); color:var(--accent); border:1px solid var(--accent); box-shadow:0 0 14px rgba(0,255,65,.18); border-radius:2px; text-shadow:var(--glow); }
     [data-theme="iterms"] .contacts-empty { color:var(--muted); }
     [data-theme="iterms"] .moments-empty { color:var(--muted); }
-    [data-theme="iterms"] .article-page-text blockquote { color:#a0e0a0; }
+    [data-theme="iterms"] .article-page-text blockquote { color:#a8d8b0; }
   </style>` : ""}
 </head>
 <body data-theme="${escapeHtml(ui.theme)}">
@@ -677,6 +686,7 @@ export function renderWechatHubHtml(input) {
       <div id="status-time">${escapeHtml(ui.statusBar.time)}</div>
       <div id="status-battery">${escapeHtml(ui.statusBar.battery)}</div>
     </div>
+    <div id="unlock-toast" class="unlock-toast" role="status" aria-live="polite"></div>
 
     <section id="list-view" class="list-view">
       <header class="top-nav">
@@ -752,6 +762,13 @@ export function renderWechatHubHtml(input) {
       <div id="article-images" class="article-page-images"></div>
     </div>
   </aside>
+  <aside id="image-viewer" class="image-viewer" aria-hidden="true">
+    <button id="image-viewer-close" class="image-viewer-close" type="button" aria-label="关闭">×</button>
+    <div id="image-viewer-stage" class="image-viewer-stage">
+      <img id="image-viewer-img" class="image-viewer-img" src="" alt="image"/>
+    </div>
+    <div id="image-viewer-status" class="image-viewer-status">100%</div>
+  </aside>
 
   <script id="chat-data" type="application/json">${payload}</script>
   <script>
@@ -793,6 +810,7 @@ export function renderWechatHubHtml(input) {
     const articleImages = document.getElementById('article-images');
     const accountBack = document.getElementById('account-back');
     const accountListWrap = document.getElementById('account-list-wrap');
+    const unlockToast = document.getElementById('unlock-toast');
 
     const persistKey = payload.ui?.persistKey || 'chat_framework_seen_v1';
     let timer = null;
@@ -811,8 +829,12 @@ export function renderWechatHubHtml(input) {
     let activeAudio = null;
     let activeVoiceBtn = null;
     let activePlayback = null;
+    let currentConversation = null;
     let articleRows = [];
-    const debugState = { enabled: true };
+    let momentObserver = null;
+    let momentReadTimers = new Map();
+    let unlockToastTimer = null;
+    const debugState = { enabled: payload.ui?.debug === true };
 
     ${HEARTBEAT_ENGINE_JS}
 
@@ -850,20 +872,20 @@ export function renderWechatHubHtml(input) {
     }
 
     function resolveAccountCardName(user, accountId) {
-      const stageDays = collectStageDaysForAccount(accountId);
+      const stageKeys = collectStageKeysForAccount(accountId);
       const rawStageIndex = Number(stageIndexMap[accountId] || 0);
-      const stageIndex = stageDays.length
-        ? Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageDays.length - 1))
+      const stageIndex = stageKeys.length
+        ? Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageKeys.length - 1))
         : 0;
-      const stageDay = stageDays[stageIndex] || currentStageMs();
-      const resolvedProfile = resolveEffectiveProfile(user, stageDay);
+      const stageKey = stageKeys[stageIndex] || currentStageMs();
+      const resolvedProfile = resolveEffectiveProfile(user, stageKey);
       const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
       const earliestTimelineEntry = timeline.reduce((earliest, entry) => {
         if (!entry || typeof entry.effectiveAtMs !== 'number') return earliest;
         if (!earliest || entry.effectiveAtMs < earliest.effectiveAtMs) return entry;
         return earliest;
       }, null);
-      const stageMs = parseIdentityReference(stageDay) ?? Date.now();
+      const stageMs = parseIdentityReference(stageKey) ?? Date.now();
       const hasActiveTimelineEntry = timeline.some((entry) => (
         entry
         && typeof entry.effectiveAtMs === 'number'
@@ -871,6 +893,29 @@ export function renderWechatHubHtml(input) {
       ));
       if (!hasActiveTimelineEntry && earliestTimelineEntry?.name) return earliestTimelineEntry.name;
       return resolvedProfile.name || earliestTimelineEntry?.name || user?.id || accountId || '';
+    }
+
+    function firstIdentityTimelineName(user) {
+      const timeline = Array.isArray(user?.identityTimeline) ? [...user.identityTimeline] : [];
+      timeline.sort((a, b) => Number(a?.effectiveAtMs || 0) - Number(b?.effectiveAtMs || 0));
+      const first = timeline.find((entry) => String(entry?.name || '').trim());
+      return String(first?.name || '').trim();
+    }
+
+    function unlockedAccountName(accountId) {
+      const user = payload.conversations.find((c) => c.profiles?.users?.[accountId])?.profiles?.users?.[accountId] || {};
+      return firstIdentityTimelineName(user) || user.name || user.id || accountId || '';
+    }
+
+    function showUnlockToast(accountId) {
+      if (!unlockToast) return;
+      const name = unlockedAccountName(accountId);
+      unlockToast.textContent = '已解锁新账号：' + name;
+      unlockToast.classList.add('show');
+      clearTimeout(unlockToastTimer);
+      unlockToastTimer = setTimeout(() => {
+        unlockToast.classList.remove('show');
+      }, 3600);
     }
 
     function currentRuntimeTime() {
@@ -886,7 +931,7 @@ export function renderWechatHubHtml(input) {
     }
 
     function collectMoments() {
-      const stageDay = currentStageMs();
+      const stageKey = currentStageMs();
       const rows = [];
       const seen = new Set();
       for (const conv of (payload.conversations || [])) {
@@ -900,8 +945,8 @@ export function renderWechatHubHtml(input) {
           const publishRaw = moment.publishAt || moment.time || "";
           const momentKey = activeAccountId + "|" + (moment.id || publishRaw);
           if (seen.has(momentKey)) continue;
-          const day = toDayKey(publishRaw);
-          if (!day || day > stageDay) continue;
+          const day = toStageKey(publishRaw);
+          if (!day || day > stageKey) continue;
           seen.add(momentKey);
           const author = resolveMomentAuthor(moment, user, users);
           rows.push({
@@ -912,6 +957,7 @@ export function renderWechatHubHtml(input) {
             bio: author.bio || "",
             profileId: author.profileId || "",
             text: String(moment.text || ""),
+            mentions: Array.isArray(moment.mentions) ? moment.mentions : [],
             images: normalizeMomentImages(moment),
             publishRaw: publishRaw,
             dayKey: day
@@ -981,8 +1027,8 @@ export function renderWechatHubHtml(input) {
         return;
       }
       momentsScroll.innerHTML = rows.map((m) => {
-        const imgs = m.images.slice(0, 9).map((url) => '<img src="' + esc(url) + '" alt="moment"/>').join('');
-        const text = m.text ? '<div class="moment-text">' + formatText(m.text) + '</div>' : '';
+        const imgs = m.images.slice(0, 9).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="moment"/>').join('');
+        const text = m.text ? '<div class="moment-text">' + formatText(m.text, m.mentions) + '</div>' : '';
         const imgWrap = imgs ? '<div class="moment-images">' + imgs + '</div>' : '';
         const profileAttrs = ' data-user-id="' + esc(m.profileId || '') + '"'
           + ' data-name="' + esc(m.name || '') + '"'
@@ -995,13 +1041,89 @@ export function renderWechatHubHtml(input) {
         const head = m.profileId
           ? '<button class="moment-profile-btn" type="button"' + profileAttrs + '>' + headInner + '</button>'
           : headInner;
-        return '<article class="moment-card">'
+        return '<article class="moment-card" data-moment-id="' + esc(m.id) + '" data-day-key="' + esc(m.dayKey) + '">'
           + '<div class="moment-head">'
           + head
           + '</div>'
           + text + imgWrap
           + '</article>';
       }).join('');
+    }
+
+    function cleanupMomentObserver() {
+      if (momentObserver) {
+        momentObserver.disconnect();
+        momentObserver = null;
+      }
+      for (const timerId of momentReadTimers.values()) clearTimeout(timerId);
+      momentReadTimers.clear();
+    }
+
+    function markMomentConsumed(momentId, dayKey) {
+      if (!momentId || dayKey !== currentStageMs()) return;
+      const seen = getMomentSeen(dayKey);
+      if (seen[momentId]) return;
+      seen[momentId] = true;
+      saveSeen();
+      updateUnreadBadges();
+      updateStatusProgress();
+      maybeAdvanceStage();
+    }
+
+    function scheduleMomentConsumed(card) {
+      const momentId = card?.dataset?.momentId || "";
+      const dayKey = card?.dataset?.dayKey || "";
+      if (!momentId || dayKey !== currentStageMs()) return;
+      if (getMomentSeen(dayKey)[momentId] || momentReadTimers.has(momentId)) return;
+      const timerId = setTimeout(() => {
+        momentReadTimers.delete(momentId);
+        markMomentConsumed(momentId, dayKey);
+        if (momentObserver) momentObserver.unobserve(card);
+      }, 700);
+      momentReadTimers.set(momentId, timerId);
+    }
+
+    function cancelMomentConsumed(card) {
+      const momentId = card?.dataset?.momentId || "";
+      const timerId = momentReadTimers.get(momentId);
+      if (!timerId) return;
+      clearTimeout(timerId);
+      momentReadTimers.delete(momentId);
+    }
+
+    function isMomentCardVisible(card) {
+      if (!card || card.dataset.dayKey !== currentStageMs()) return false;
+      const rootRect = momentsScroll.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const visibleHeight = Math.min(cardRect.bottom, rootRect.bottom) - Math.max(cardRect.top, rootRect.top);
+      if (visibleHeight <= 0 || cardRect.height <= 0) return false;
+      return visibleHeight / cardRect.height >= 0.6;
+    }
+
+    function observeRenderedMoments() {
+      cleanupMomentObserver();
+      const cards = Array.from(momentsScroll.querySelectorAll('.moment-card'));
+      if (!cards.length) return;
+      const currentStage = currentStageMs();
+      const unreadCards = cards.filter((card) => {
+        const momentId = card.dataset.momentId || "";
+        const dayKey = card.dataset.dayKey || "";
+        return dayKey === currentStage && momentId && !getMomentSeen(dayKey)[momentId];
+      });
+      if (!unreadCards.length) return;
+      if (!('IntersectionObserver' in window)) {
+        unreadCards.forEach((card) => {
+          if (isMomentCardVisible(card)) scheduleMomentConsumed(card);
+        });
+        return;
+      }
+      momentObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.intersectionRatio >= 0.6) scheduleMomentConsumed(entry.target);
+          else cancelMomentConsumed(entry.target);
+        });
+      }, { root: momentsScroll, threshold: [0, 0.6] });
+      unreadCards.forEach((card) => momentObserver.observe(card));
     }
 
     function enterAccountView() {
@@ -1020,6 +1142,7 @@ export function renderWechatHubHtml(input) {
     }
 
     function showChatList() {
+      cleanupMomentObserver();
       listView.style.display = 'flex';
       momentsView.style.display = 'none';
       contactsView.style.display = 'none';
@@ -1045,16 +1168,13 @@ export function renderWechatHubHtml(input) {
       tabMoments.classList.add('active');
       tabMe.classList.remove('active');
       renderMoments();
-      const seen = getMomentSeen(currentStageMs());
-      for (const m of collectMoments()) seen[m.id] = true;
-      saveSeen();
+      observeRenderedMoments();
       updateUnreadBadges();
       updateStatusProgress();
-      maybeAdvanceStage();
     }
 
     function collectArticles() {
-      const stageDay = currentStageMs();
+      const stageKey = currentStageMs();
       const rows = [];
       const seen = new Set();
       for (const conv of (payload.conversations || [])) {
@@ -1074,8 +1194,8 @@ export function renderWechatHubHtml(input) {
           const item = repo[key];
           if (!item) continue;
           const publishRaw = item.publishAt || item.time || "";
-          const day = toDayKey(publishRaw);
-          if (!day || day > stageDay) continue;
+          const day = toStageKey(publishRaw);
+          if (!day || day > stageKey) continue;
           seen.add(key);
           const imgs = normalizeMomentImages(item);
           rows.push({
@@ -1086,6 +1206,7 @@ export function renderWechatHubHtml(input) {
             cover: String(item.cover || imgs[0] || ""),
             desc: String(item.desc || item.summary || ""),
             text: String(item.markdown || item.body || item.text || item.content || ""),
+            html: String(item.html || ""),
             images: imgs,
             dayKey: day
           });
@@ -1101,10 +1222,15 @@ export function renderWechatHubHtml(input) {
         contactsScroll.innerHTML = '<div class="contacts-empty">已读完</div>';
         return;
       }
+      const currentStage = currentStageMs();
+      const seen = getArticleSeen(currentStage);
       contactsScroll.innerHTML = articleRows.map((a, idx) => {
-        const cover = a.cover ? '<img class="oa-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
+        const unread = a.dayKey === currentStage && !seen[a.id];
+        const cover = a.cover ? '<img class="oa-cover" src="' + esc(a.cover) + '" data-preview-src="' + esc(a.cover) + '" alt="cover"/>' : '';
         const desc = a.desc ? '<div class="oa-desc">' + esc(a.desc) + '</div>' : '';
-        return '<article class="oa-card">'
+        const unreadDot = unread ? '<span class="oa-unread-dot" aria-hidden="true"></span>' : '';
+        return '<article class="oa-card' + (unread ? ' unread' : '') + '">'
+          + unreadDot
           + '<div class="oa-title">' + esc(a.title) + '</div>'
           + '<div class="oa-meta">' + esc(a.author) + ' · ' + esc(a.publishRaw) + '</div>'
           + cover + desc
@@ -1120,28 +1246,37 @@ export function renderWechatHubHtml(input) {
       articleSub.textContent = a.author + " · " + a.publishRaw;
       articleCover.style.display = a.cover ? "block" : "none";
       articleCover.src = a.cover || "";
-      articleText.innerHTML = renderMarkdown(a.text || "");
-      articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" alt="image"/>').join('');
+      if (a.cover) articleCover.dataset.previewSrc = a.cover;
+      else articleCover.removeAttribute('data-preview-src');
+      articleText.innerHTML = a.html || renderMarkdown(a.text || "");
+      articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
     }
 
     function openInlineArticle(data) {
+      const articleId = data.articleId || "";
+      const repoArticle = articleId && currentConversation?.articles
+        ? (currentConversation.articles[articleId] || {})
+        : {};
       const a = {
-        title: data.title || "未命名文章",
-        author: data.author || "",
-        publishRaw: data.publishRaw || "",
-        cover: data.cover || "",
-        text: data.text || "",
-        images: data.images || []
+        title: repoArticle.title || data.title || "未命名文章",
+        author: repoArticle.author || data.author || "",
+        publishRaw: repoArticle.publishAt || data.publishRaw || "",
+        cover: repoArticle.cover || data.cover || "",
+        text: repoArticle.text || data.text || "",
+        html: repoArticle.html || data.html || "",
+        images: Array.isArray(repoArticle.images) ? repoArticle.images : (data.images || [])
       };
       articleTitle.textContent = a.title;
       articleSub.textContent = [a.author, a.publishRaw].filter(Boolean).join(" · ");
       articleCover.style.display = a.cover ? "block" : "none";
       articleCover.src = a.cover || "";
-      articleText.innerHTML = renderMarkdown(a.text || "");
-      articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" alt="image"/>').join('');
+      if (a.cover) articleCover.dataset.previewSrc = a.cover;
+      else articleCover.removeAttribute('data-preview-src');
+      articleText.innerHTML = a.html || renderMarkdown(a.text || "");
+      articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
@@ -1155,6 +1290,7 @@ export function renderWechatHubHtml(input) {
 
     function showContacts() {
       clearTimer();
+      cleanupMomentObserver();
       listView.style.display = 'none';
       momentsView.style.display = 'none';
       detailView.style.display = 'none';
@@ -1165,12 +1301,8 @@ export function renderWechatHubHtml(input) {
       tabMoments.classList.remove('active');
       tabMe.classList.remove('active');
       renderContacts();
-      const seen = getArticleSeen(currentStageMs());
-      for (const a of articleRows) seen[a.id] = true;
-      saveSeen();
       updateUnreadBadges();
       updateStatusProgress();
-      maybeAdvanceStage();
     }
 
     function loadSeen() {
@@ -1230,15 +1362,15 @@ export function renderWechatHubHtml(input) {
       }
     }
 
-    function toDayKey(raw) {
+    function toStageKey(raw) {
       if (!raw) return "";
-      const s = String(raw);
-      const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-      if (m) return m[1];
+      const s = String(raw).trim();
+      const direct = s.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2})(?::\d{2}(?::\d{2})?)?)?$/);
+      if (direct) return direct[1] + " " + (direct[2] || "00") + ":00";
       const d = parseMomentTime(raw);
       if (!d) return "";
       const pad = (n) => String(n).padStart(2, "0");
-      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":00";
     }
 
     function accountKey() {
@@ -1304,10 +1436,10 @@ export function renderWechatHubHtml(input) {
     function articleKeyFromDoc(doc) {
       if (!doc) return "";
       var s = String(doc).trim();
-      if (!/\.(ya?ml)$/i.test(s)) return s;
+      if (!/\.(ya?ml|md|markdown)$/i.test(s)) return s;
       var parts = s.split("/");
       var base = parts[parts.length - 1];
-      return base.replace(/\.(ya?ml)$/i, "");
+      return base.replace(/\.(ya?ml|md|markdown)$/i, "");
     }
 
     function collectContentUnitsForAccount(accountId) {
@@ -1317,7 +1449,7 @@ export function renderWechatHubHtml(input) {
 
         const messageDays = new Set();
         for (const msg of (conv.messages || [])) {
-          const day = toDayKey(msg.timestamp || msg.timeText || "");
+          const day = toStageKey(msg.timestamp || msg.timeText || "");
           if (day) messageDays.add(day);
         }
         for (const day of messageDays) {
@@ -1330,7 +1462,7 @@ export function renderWechatHubHtml(input) {
         const selfUser = users[selfId];
         for (const refId of articleRefsForUser(selfUser)) {
           const item = repo[String(refId)];
-          const day = toDayKey(item?.publishAt || item?.time || "");
+          const day = toStageKey(item?.publishAt || item?.time || "");
           if (day) units.set("article|" + String(refId), { type: "article", day });
         }
 
@@ -1339,7 +1471,7 @@ export function renderWechatHubHtml(input) {
           const moments = accountUser.moments || {};
           for (const [key, moment] of Object.entries(moments)) {
             const publishRaw = moment?.publishAt || moment?.time || "";
-            const day = toDayKey(publishRaw);
+            const day = toStageKey(publishRaw);
             if (!day) continue;
             units.set("moment|" + accountId + "|" + (moment.id || publishRaw), { type: "moment", day });
           }
@@ -1348,7 +1480,7 @@ export function renderWechatHubHtml(input) {
       return Array.from(units.values());
     }
 
-    function collectStageDaysForAccount(accountId) {
+    function collectStageKeysForAccount(accountId) {
       const days = collectContentUnitsForAccount(accountId).map((unit) => unit.day).filter(Boolean);
       days.sort((a, b) => a.localeCompare(b, "zh-CN"));
       const uniq = [];
@@ -1381,9 +1513,9 @@ export function renderWechatHubHtml(input) {
 
     function initTimelineStages() {
       syncStageIndexFromAccount();
-      timelineStages = collectStageDaysForAccount(activeAccountId);
+      timelineStages = collectStageKeysForAccount(activeAccountId);
       if (!timelineStages.length) {
-        const now = toDayKey(new Date().toISOString());
+        const now = toStageKey(new Date().toISOString());
         timelineStages = [now];
       }
       stageIndex = Math.max(0, Math.min(stageIndex, timelineStages.length - 1));
@@ -1451,16 +1583,16 @@ export function renderWechatHubHtml(input) {
       const day = currentStageMs();
       setBadgeCount(badgeChat, unreadChatCount(day));
       setBadgeDot(badgeMoments, unreadMomentsCount(day) > 0);
-      setBadgeDot(badgeContacts, unreadArticlesCount(day) > 0);
+      setBadgeCount(badgeContacts, unreadArticlesCount(day));
       const meCount = Object.entries(accountNoticeMap).filter(([id, on]) => on && id !== activeAccountId && isAccountUnlocked(id)).length;
       setBadgeDot(badgeMe, meCount > 0);
       updateStatusProgress(accountView.style.display === 'flex' ? "accounts" : undefined);
     }
     function hasStageMessages(conv, day) {
-      return (conv.messages || []).some((m) => toDayKey(m.timestamp || m.timeText || "") <= day);
+      return (conv.messages || []).some((m) => toStageKey(m.timestamp || m.timeText || "") <= day);
     }
     function hasNewMessagesOnDay(conv, day) {
-      return (conv.messages || []).some((m) => toDayKey(m.timestamp || m.timeText || "") === day);
+      return (conv.messages || []).some((m) => toStageKey(m.timestamp || m.timeText || "") === day);
     }
     function hasAutoplayUnread(conv, day) {
       const seen = getStageSeen(day);
@@ -1474,6 +1606,7 @@ export function renderWechatHubHtml(input) {
     function toSnippetRuntime(message, conv) {
       if (!message) return "";
       if (message.recall) return "[消息已撤回]";
+      if (message.kind === "status") return String(message.text || "").replace(/\s+/g, " ").trim();
       if (message.kind === "image") return "[图片]";
       if (message.kind === "voice") {
         return ('[语音] ' + (message.durationSec ? (String(message.durationSec) + '"') : '')).trim();
@@ -1502,10 +1635,10 @@ export function renderWechatHubHtml(input) {
     }
     function listDisplayMessage(conv, day) {
       const messages = conv.messages || [];
-      const visible = messages.filter((m) => toDayKey(m.timestamp || m.timeText || "") <= day);
+      const visible = messages.filter((m) => toStageKey(m.timestamp || m.timeText || "") <= day);
       if (!visible.length) return null;
       if (hasAutoplayUnread(conv, day)) {
-        const firstToday = messages.find((m) => toDayKey(m.timestamp || m.timeText || "") === day);
+        const firstToday = messages.find((m) => toStageKey(m.timestamp || m.timeText || "") === day);
         if (firstToday) return firstToday;
       }
       return visible[visible.length - 1];
@@ -1523,14 +1656,25 @@ export function renderWechatHubHtml(input) {
       const participants = Array.from(new Set((conv.messages || []).map((m) => String(m.senderId))));
       return participants.find((id) => id !== self) || conv.chat?.peer || "";
     }
+    function profileTimelineNameAtStage(profile, stageKey) {
+      const stageMs = parseIdentityReference(stageKey);
+      if (stageMs === null) return "";
+      let name = "";
+      const timeline = Array.isArray(profile?.identityTimeline) ? profile.identityTimeline : [];
+      timeline.forEach((entry) => {
+        if (!entry || typeof entry.effectiveAtMs !== "number" || entry.effectiveAtMs > stageMs) return;
+        if (entry.name !== undefined) name = String(entry.name || "").trim();
+      });
+      return name;
+    }
     function conversationTitle(conv) {
       if (conv.chat?.type === "single") {
         const peerId = getPeerId(conv);
         const selfProfile = conv.profiles?.users?.[activeAccountId || conv.self] || {};
+        const peerProfile = conv.profiles?.users?.[peerId] || {};
         return selfProfile.aliases?.contacts?.[peerId]
-          || conv.profiles?.users?.[peerId]?.name
+          || profileTimelineNameAtStage(peerProfile, currentStageMs())
           || conv.title
-          || peerId
           || "单聊";
       }
       return conv.title || "群聊";
@@ -1544,7 +1688,7 @@ export function renderWechatHubHtml(input) {
 
     function conversationUnlockMs(conv) {
       const first = conv.messages?.[0];
-      return toDayKey(first?.timestamp || first?.timeText || "");
+      return toStageKey(first?.timestamp || first?.timeText || "");
     }
 
     function isVisibleByAccount(conv) {
@@ -1578,6 +1722,11 @@ export function renderWechatHubHtml(input) {
             saveSeen();
             setStageStatusTime();
             renderList();
+            if (momentsView.style.display === 'flex') {
+              renderMoments();
+              observeRenderedMoments();
+            }
+            if (contactsView.style.display === 'flex') renderContacts();
           }
         }
       }
@@ -1588,6 +1737,7 @@ export function renderWechatHubHtml(input) {
           accountNoticeMap[next] = true;
           saveSeen();
           updateUnreadBadges();
+          showUnlockToast(next);
         }
       }
     }
@@ -1666,13 +1816,25 @@ export function renderWechatHubHtml(input) {
     function emojify(text) {
       return String(text || '').replace(/\\[([^\\[\\]]+)\\]/g, (m, key) => emojiMap[key] || m);
     }
-    function mentionify(htmlText) {
-      return htmlText.replace(/(^|[\\s>])@([A-Za-z0-9_\\-\\u4e00-\\u9fa5]+)/g, '$1<span class="mention">@$2</span>');
-    }
-    function formatText(text) {
-      return mentionify(linkify(emojify(text || '')));
+    function formatText(text, mentions) {
+      const source = String(text || '');
+      const ranges = Array.isArray(mentions) ? mentions : [];
+      if (!ranges.length) return linkify(emojify(source));
+      let html = '';
+      let cursor = 0;
+      ranges.forEach((range) => {
+        const start = Math.max(0, Math.min(Number(range.start), source.length));
+        const end = Math.max(start, Math.min(Number(range.end), source.length));
+        if (start < cursor || end <= start) return;
+        html += linkify(emojify(source.slice(cursor, start)));
+        html += '<span class="mention">' + esc(source.slice(start, end)) + '</span>';
+        cursor = end;
+      });
+      html += linkify(emojify(source.slice(cursor)));
+      return html;
     }
 ${articleMarkdownRuntimeSource()}
+${imageViewerRuntimeSource()}
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
@@ -1764,11 +1926,11 @@ ${articleMarkdownRuntimeSource()}
 
     function renderContent(msg, conv) {
       if (msg.kind === 'image') {
-        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text) + '</div>' : '';
-        return '<img class="img" src="' + esc(msg.imageUrl || '') + '" alt="image"/>' + caption;
+        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text, msg.mentions) + '</div>' : '';
+        return '<img class="img" src="' + esc(msg.imageUrl || '') + '" data-preview-src="' + esc(msg.imageUrl || '') + '" alt="image"/>' + caption;
       }
       if (msg.kind === 'voice') {
-        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text) + '</div>' : '';
+        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text, msg.mentions) + '</div>' : '';
         return '<button class="voice-btn" type="button" data-audio-url="' + esc(msg.audioUrl || '') + '">'
           + '<span class="voice-icon">▶</span>'
           + '<span class="voice-duration">' + esc(formatVoiceDuration(msg.durationSec)) + '</span>'
@@ -1780,25 +1942,32 @@ ${articleMarkdownRuntimeSource()}
         if (doc) {
           const articleKey = articleKeyFromDoc(doc);
           const repo = conv.articles || {};
-          const fromRepo = repo[articleKey] || {};
+          const hasRepoArticle = Object.prototype.hasOwnProperty.call(repo, articleKey);
+          const fromRepo = hasRepoArticle ? (repo[articleKey] || {}) : {};
           const a = {
             title: fromRepo.title || c.title || articleKey,
             author: fromRepo.author || "",
             publishRaw: fromRepo.publishAt || "",
             cover: fromRepo.cover || "",
             summary: fromRepo.summary || c.desc || c.summary || "",
+            summaryMentions: fromRepo.summaryMentions || c.descMentions || c.summaryMentions || [],
             text: fromRepo.markdown || fromRepo.body || fromRepo.text || "",
+            html: fromRepo.html || "",
             images: Array.isArray(fromRepo.images) ? fromRepo.images : []
           };
           const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
-          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary, a.summaryMentions) + '</div>' : '';
+          const articleAttrs = hasRepoArticle
+            ? (' data-article-id="' + esc(articleKey) + '"')
+            : (' data-title="' + esc(a.title || '') + '"'
+              + ' data-author="' + esc(a.author || '') + '"'
+              + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
+              + ' data-cover="' + esc(a.cover || '') + '"'
+              + ' data-text="' + esc(a.text || '') + '"'
+              + ' data-html="' + esc(a.html || '') + '"'
+              + ' data-images="' + esc((a.images || []).join(",")) + '"');
           return '<button class="article-card" type="button"'
-            + ' data-title="' + esc(a.title || '') + '"'
-            + ' data-author="' + esc(a.author || '') + '"'
-            + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
-            + ' data-cover="' + esc(a.cover || '') + '"'
-            + ' data-text="' + esc(a.text || '') + '"'
-            + ' data-images="' + esc((a.images || []).join(",")) + '"'
+            + articleAttrs
             + '>'
             + '<div class="article-title">' + esc(a.title || '文档') + '</div>'
             + '<div class="article-meta">' + esc(a.author || '') + '</div>'
@@ -1814,25 +1983,33 @@ ${articleMarkdownRuntimeSource()}
       if (msg.kind === 'article-card') {
         const raw = msg.articleCard || {};
         const repo = conv.articles || {};
-        const fromRepo = raw.refId ? (repo[raw.refId] || {}) : {};
+        const articleKey = articleKeyFromDoc(raw.refId || "");
+        const hasRepoArticle = articleKey ? Object.prototype.hasOwnProperty.call(repo, articleKey) : false;
+        const fromRepo = hasRepoArticle ? (repo[articleKey] || {}) : {};
         const a = {
           title: fromRepo.title || raw.title || "",
           author: fromRepo.author || raw.author || "",
           publishRaw: fromRepo.publishAt || raw.publishAt || "",
           cover: fromRepo.cover || raw.cover || "",
           summary: fromRepo.summary || raw.summary || "",
+          summaryMentions: fromRepo.summaryMentions || raw.summaryMentions || [],
           text: fromRepo.markdown || fromRepo.body || fromRepo.text || raw.markdown || raw.body || raw.text || "",
+          html: fromRepo.html || raw.html || "",
           images: Array.isArray(fromRepo.images) ? fromRepo.images : (raw.images || [])
         };
         const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
-        const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+        const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary, a.summaryMentions) + '</div>' : '';
+        const articleAttrs = hasRepoArticle
+          ? (' data-article-id="' + esc(articleKey) + '"')
+          : (' data-title="' + esc(a.title || '') + '"'
+            + ' data-author="' + esc(a.author || '') + '"'
+            + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
+            + ' data-cover="' + esc(a.cover || '') + '"'
+            + ' data-text="' + esc(a.text || '') + '"'
+            + ' data-html="' + esc(a.html || '') + '"'
+            + ' data-images="' + esc((a.images || []).join(",")) + '"');
         return '<button class="article-card" type="button"'
-          + ' data-title="' + esc(a.title || '') + '"'
-          + ' data-author="' + esc(a.author || '') + '"'
-          + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
-          + ' data-cover="' + esc(a.cover || '') + '"'
-          + ' data-text="' + esc(a.text || '') + '"'
-          + ' data-images="' + esc((a.images || []).join(",")) + '"'
+          + articleAttrs
           + '>'
           + '<div class="article-title">' + esc(a.title || '文章') + '</div>'
           + '<div class="article-meta">' + esc(a.author || '') + '</div>'
@@ -1848,11 +2025,14 @@ ${articleMarkdownRuntimeSource()}
           + '<div class="contact-bio">' + esc(c.bio || '') + '</div></div>'
           + '</div>';
       }
-      return '<div>' + formatText(msg.text || '') + '</div>';
+      return '<div>' + formatText(msg.text || '', msg.mentions) + '</div>';
     }
 
     function renderMessage(msg, conv, options) {
       const opts = options || {};
+      if (msg.kind === 'status') {
+        return '<div class="end-tip" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + formatText(msg.text || '', msg.mentions) + '</div>';
+      }
       const user = conv.profiles.users?.[msg.senderId] || { name: msg.senderId, avatar: '' };
       const resolvedProfile = resolveEffectiveProfile(user, currentStageMs());
       const self = activeAccountId || conv.self;
@@ -1917,10 +2097,10 @@ ${articleMarkdownRuntimeSource()}
 
     function markSeen(conversationId) {
       seenMap[keyWithAccount(conversationId)] = true;
-      const day = currentStageMs();
-      const seen = getStageSeen(day);
+      const stage = currentStageMs();
+      const seen = getStageSeen(stage);
       seen[conversationId] = true;
-      debugLog("markSeen", { account: activeAccountId, day, conversationId, stageSeen: { ...seen } });
+      debugLog("markSeen", { account: activeAccountId, stage, conversationId, stageSeen: { ...seen } });
       saveSeen();
       updateUnreadBadges();
       maybeAdvanceStage();
@@ -1939,7 +2119,7 @@ ${articleMarkdownRuntimeSource()}
         timeline.insertAdjacentHTML('beforeend', '<div class="end-tip">当前聊天已结束</div>');
       }
       timeline.scrollTop = timeline.scrollHeight;
-      debugLog("finishConversation", { account: activeAccountId, day: currentStageMs(), conversationId });
+      debugLog("finishConversation", { account: activeAccountId, stage: currentStageMs(), conversationId });
       heartbeatEngine.reset();
       markSeen(conversationId);
     }
@@ -1947,20 +2127,20 @@ ${articleMarkdownRuntimeSource()}
     function renderList() {
       setStageStatusTime();
       updateUnreadBadges();
-      const day = currentStageMs();
+      const stage = currentStageMs();
       listScroll.innerHTML = payload.conversations.filter((c) => isVisibleByStage(c)).map((c) => {
-        const hasUnread = hasAutoplayUnread(c, day);
+        const hasUnread = hasAutoplayUnread(c, stage);
         const dot = hasUnread ? '<span class="list-dot"></span>' : '';
-        const displayMsg = listDisplayMessage(c, day);
+        const displayMsg = listDisplayMessage(c, stage);
         const preview = displayMsg ? toSnippetRuntime(displayMsg, c) : (c.preview || "");
         const listTime = displayMsg ? toListTimeRuntime(displayMsg.timeText || displayMsg.timestamp || "") : (c.listTime || "");
         debugLog("renderList:item", {
           account: activeAccountId,
-          day,
+          stage,
           conversationId: c.id,
           hasUnread,
           displayMid: displayMsg?.id || "",
-          displayDay: displayMsg ? toDayKey(displayMsg.timestamp || displayMsg.timeText || "") : "",
+          displayStage: displayMsg ? toStageKey(displayMsg.timestamp || displayMsg.timeText || "") : "",
           preview,
           listTime
         });
@@ -1981,9 +2161,11 @@ ${articleMarkdownRuntimeSource()}
 
     function openConversation(conversationId) {
       clearTimer();
+      cleanupMomentObserver();
       const conv = payload.conversations.find((x) => x.id === conversationId);
       if (!conv) return;
       if (!isVisibleByStage(conv)) return;
+      currentConversation = conv;
 
       listView.style.display = 'none';
       momentsView.style.display = 'none';
@@ -1999,13 +2181,13 @@ ${articleMarkdownRuntimeSource()}
       const stageMs = currentStageMs();
       const stageSeen = getStageSeen(stageMs);
       const prevStageMs = stageIndex > 0 ? timelineStages[stageIndex - 1] : "";
-      const stageMessages = (conv.messages || []).filter((m) => toDayKey(m.timestamp || m.timeText || "") <= stageMs);
+      const stageMessages = (conv.messages || []).filter((m) => toStageKey(m.timestamp || m.timeText || "") <= stageMs);
       const oldMessages = prevStageMs
-        ? (conv.messages || []).filter((m) => toDayKey(m.timestamp || m.timeText || "") <= prevStageMs)
+        ? (conv.messages || []).filter((m) => toStageKey(m.timestamp || m.timeText || "") <= prevStageMs)
         : [];
       debugLog("openConversation", {
         account: activeAccountId,
-        day: stageMs,
+        stage: stageMs,
         conversationId,
         stageSeen: !!stageSeen[conversationId],
         stageMessages: stageMessages.length,
@@ -2079,10 +2261,10 @@ ${articleMarkdownRuntimeSource()}
       accountListWrap.innerHTML = accountIds.filter((id) => isAccountUnlocked(id)).map((id) => {
         const user = payload.conversations.find((c) => c.profiles?.users?.[id])?.profiles?.users?.[id] || {};
         const name = resolveAccountCardName(user, id);
-        const stageDays = collectStageDaysForAccount(id);
+        const stageKeys = collectStageKeysForAccount(id);
         const rawStageIndex = Number(stageIndexMap[id] || 0);
-        const stageDay = stageDays.length ? stageDays[Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageDays.length - 1))] : currentStageMs();
-        const avatar = resolveEffectiveProfile(user, stageDay).avatar || user.avatar || "";
+        const stageKey = stageKeys.length ? stageKeys[Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageKeys.length - 1))] : currentStageMs();
+        const avatar = resolveEffectiveProfile(user, stageKey).avatar || user.avatar || "";
         const isCurrent = id === activeAccountId;
         const current = isCurrent ? '<div class="account-current">● 当前使用</div>' : '';
         return '<button class="account-card' + (isCurrent ? ' active' : '') + '" type="button" data-id="' + esc(id) + '">'
@@ -2093,6 +2275,7 @@ ${articleMarkdownRuntimeSource()}
       }).join('') + '<button class="account-reset" type="button">重置数据</button>';
       accountListWrap.querySelectorAll('.account-card').forEach((btn) => {
         btn.addEventListener('click', () => {
+          cleanupMomentObserver();
           activeAccountId = btn.dataset.id || activeAccountId;
           accountNoticeMap[activeAccountId] = false;
           initTimelineStages();
@@ -2112,6 +2295,7 @@ ${articleMarkdownRuntimeSource()}
     }
 
     function showAccountView() {
+      cleanupMomentObserver();
       renderAccountList();
       accountNoticeMap[activeAccountId] = false;
       for (const id of Object.keys(accountNoticeMap)) {
@@ -2165,7 +2349,9 @@ ${articleMarkdownRuntimeSource()}
           author: articleBtn.dataset.author || "",
           publishRaw: articleBtn.dataset.publishRaw || "",
           cover: articleBtn.dataset.cover || "",
+          articleId: articleBtn.dataset.articleId || "",
           text: articleBtn.dataset.text || "",
+          html: articleBtn.dataset.html || "",
           images: (articleBtn.dataset.images || "").split(",").filter(Boolean)
         };
         openInlineArticle(data);
@@ -2190,6 +2376,7 @@ ${articleMarkdownRuntimeSource()}
         return;
       }
 
+      if (e.target.closest('img[data-preview-src]')) return;
       if (e.target.closest('a, button')) return;
       acceleratePlayback();
     });
@@ -2198,20 +2385,23 @@ ${articleMarkdownRuntimeSource()}
       if (!btn) return;
       const idx = Number(btn.dataset.idx || -1);
       const item = articleRows[idx];
-      if (item) {
-        const seen = getArticleSeen(currentStageMs());
+      openArticle(idx);
+      if (item && item.dayKey === currentStageMs()) {
+        const seen = getArticleSeen(item.dayKey);
         seen[item.id] = true;
         saveSeen();
         updateUnreadBadges();
+        updateStatusProgress();
         maybeAdvanceStage();
+        if (contactsView.style.display === 'flex' && item.dayKey === currentStageMs()) renderContacts();
       }
-      openArticle(idx);
     });
     articleBack.addEventListener('click', closeArticle);
 
     loadSeen();
     initAccounts();
     initTimelineStages();
+    installImageViewer();
     enterAccountView();
     renderList();
     heartbeatEngine.start();
@@ -2321,7 +2511,7 @@ export function renderWechatStoryHtml(input) {
     .contact-nick { margin-top:2px; font-size:11px; color:var(--muted); word-break:break-word; }
     .contact-bio { margin-top:6px; font-size:12px; color:#4c4c4c; line-height:1.35; white-space:normal; word-break:break-word; }
     .inline-link { color:#576b95; }
-    .mention { color:#576b95; font-weight:600; }
+    .mention { display:inline-block; padding:0 5px; border-radius:5px; color:#576b95; background:rgba(87,107,149,.14); border:1px solid rgba(87,107,149,.22); font-weight:700; line-height:1.25; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
     .end-tip { font-size:12px; color:var(--muted); text-align:center; margin:16px 0 4px; }
     .profile-modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.35); z-index: 20; }
     .profile-modal.show { display: flex; }
@@ -2331,6 +2521,13 @@ export function renderWechatStoryHtml(input) {
     .profile-name { font-size:16px; font-weight:600; }
     .profile-item { font-size:13px; color:#444; line-height:1.45; margin-top:4px; word-break:break-word; }
     .profile-close { margin-top:12px; width:100%; border:none; border-radius:8px; background:#f2f2f2; padding:8px 0; cursor:pointer; }
+    .article-modal { position: fixed; top:0; bottom:0; left:50%; width:min(390px, 100vw); transform:translateX(-50%); background:#fff; z-index:80; display:none; overflow-y:auto; border-left:1px solid #cfcfcf; border-right:1px solid #cfcfcf; }
+    .article-modal.show { display:block; }
+    .article-header { position: sticky; top:0; background:rgba(255,255,255,.96); backdrop-filter:blur(10px); border-bottom:1px solid #ececec; height:46px; display:flex; align-items:center; padding:0 10px; }
+    .article-back { border:none; background:transparent; font-size:14px; color:#444; cursor:pointer; padding:6px 8px; }
+    .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:19px; --article-h2-size:17px; --article-h3-size:16px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.38; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:15px; --article-text-line-height:1.75; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; --article-markdown-border-top:1px solid #ededed; --article-markdown-padding-top:14px; }
+    ${articlePageCss}
+    ${imageViewerCss}
     [data-theme="iterms"] { --bg:#0a0d14; --panel:#0d1117; --text:#33ff66; --muted:#6aaa70; --line:#173020; --incoming:#141b22; --outgoing:#0e2a15; --green:#00ff41; --accent:#00ff41; --glow:0 0 6px rgba(0,255,65,0.45); }
     body[data-theme="iterms"] { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
     [data-theme="iterms"] .phone { background:var(--bg); border-color:#173020; }
@@ -2362,13 +2559,17 @@ export function renderWechatStoryHtml(input) {
     [data-theme="iterms"] .contact-nick { color:var(--muted); }
     [data-theme="iterms"] .contact-avatar { border-radius:2px; }
     [data-theme="iterms"] .inline-link { color:var(--accent); }
-    [data-theme="iterms"] .mention { color:var(--accent); text-shadow:0 0 4px rgba(0,255,65,0.4); }
+    [data-theme="iterms"] .mention { color:#7CFF8F; background:rgba(0,255,65,.14); border:1px solid rgba(0,255,65,.38); border-radius:5px; font-weight:700; text-shadow:0 0 5px rgba(0,255,65,0.5); }
     [data-theme="iterms"] .profile-modal { background:rgba(0,8,5,.75); }
     [data-theme="iterms"] .profile-card { background:#0a1016; border:1px solid var(--line); box-shadow:0 0 20px rgba(0,255,65,.15); border-radius:4px; }
     [data-theme="iterms"] .profile-name { color:var(--accent); text-shadow:var(--glow); }
     [data-theme="iterms"] .profile-item { color:var(--text); }
     [data-theme="iterms"] .profile-close { background:#0d1a12; border:1px solid var(--line); color:var(--text); }
     [data-theme="iterms"] .profile-avatar { border-radius:2px; }
+    [data-theme="iterms"] .article-modal { background:#05080d; border-color:#173020; }
+    [data-theme="iterms"] .article-header { background:rgba(5,8,13,.96); border-color:var(--line); box-shadow:0 1px 0 #0f2b18; }
+    [data-theme="iterms"] .article-back { color:var(--accent); }
+    [data-theme="iterms"] .article-body { color:var(--text); max-width:760px; font-family:"SF Mono","Menlo","Courier New",monospace; --article-body-bg:#05080d; --article-body-border:1px solid #173020; --article-body-radius:2px; --article-body-shadow:inset 0 0 0 1px rgba(124,255,143,.04),0 14px 32px rgba(0,0,0,.38); --article-h1-size:18px; --article-h2-size:16px; --article-h3-size:15px; --article-heading-color:#7CFF8F; --article-heading-line-height:1.35; --article-heading-shadow:none; --article-heading-border:1px solid #18351f; --article-heading-padding-bottom:5px; --article-title-letter-spacing:0; --article-sub-color:#78977e; --article-sub-letter-spacing:.04em; --article-sub-transform:uppercase; --article-text-size:14px; --article-text-line-height:1.72; --article-text-color:#c9f5d1; --article-paragraph-color:#c9f5d1; --article-link-color:#7CFF8F; --article-link-decoration:underline; --article-link-underline-offset:3px; --article-code-font:"SF Mono","Menlo","Courier New",monospace; --article-code-bg:#101823; --article-code-border:1px solid #203444; --article-code-radius:2px; --article-code-color:#ffd866; --article-pre-bg:#03070a; --article-pre-border:1px solid #18351f; --article-pre-radius:2px; --article-pre-color:#d7ffe0; --article-pre-shadow:inset 0 0 0 1px rgba(124,255,143,.04); --article-blockquote-bg:#09160f; --article-blockquote-border:#6ee7b7; --article-blockquote-color:#a8d8b0; --article-hr-color:#173020; --article-del-color:#78977e; --article-table-border:#173020; --article-table-head-bg:#0b1710; --article-table-cell-bg:#050a07; --article-inline-image-bg:#07100a; --article-inline-image-border:1px solid #214b2c; --article-page-image-bg:#07100a; --article-page-image-border:1px solid #214b2c; --article-image-radius:2px; --article-markdown-bg:#07100a; --article-markdown-border:1px solid #132919; --article-markdown-border-top:1px solid #173020; --article-markdown-radius:2px; --article-markdown-shadow:inset 0 0 0 1px rgba(124,255,143,.03); --article-markdown-padding:14px 16px 16px; }
     [data-theme="iterms"] .end-tip { color:var(--muted); }
     [data-theme="iterms"] .recall-tip { color:var(--muted); }
     [data-theme="iterms"] .voice-icon { color:var(--accent); }
@@ -2377,7 +2578,7 @@ export function renderWechatStoryHtml(input) {
     [data-theme="iterms"] .scene-next-btn { color:var(--accent); }
   </style>
 </head>
-<body>
+<body data-theme="wechat">
   <main id="phone" class="phone">
     <div class="status-bar">
       <div id="status-carrier">中国移动</div>
@@ -2419,6 +2620,25 @@ export function renderWechatStoryHtml(input) {
       <button id="profile-close" class="profile-close" type="button">关闭</button>
     </div>
   </aside>
+  <aside id="article-modal" class="article-modal" aria-hidden="true">
+    <header class="article-header">
+      <button id="article-back" class="article-back" type="button">返回</button>
+    </header>
+    <div class="article-body">
+      <h1 id="article-title" class="article-page-title"></h1>
+      <div id="article-sub" class="article-page-sub"></div>
+      <img id="article-cover" class="article-page-cover" src="" alt="cover"/>
+      <div id="article-text" class="article-page-text"></div>
+      <div id="article-images" class="article-page-images"></div>
+    </div>
+  </aside>
+  <aside id="image-viewer" class="image-viewer" aria-hidden="true">
+    <button id="image-viewer-close" class="image-viewer-close" type="button" aria-label="关闭">×</button>
+    <div id="image-viewer-stage" class="image-viewer-stage">
+      <img id="image-viewer-img" class="image-viewer-img" src="" alt="image"/>
+    </div>
+    <div id="image-viewer-status" class="image-viewer-status">100%</div>
+  </aside>
 
   <script id="story-data" type="application/json">${payload}</script>
   <script>
@@ -2443,12 +2663,20 @@ export function renderWechatStoryHtml(input) {
     const profileWechat = document.getElementById('profile-wechat');
     const profileBio = document.getElementById('profile-bio');
     const profileClose = document.getElementById('profile-close');
+    const articleModal = document.getElementById('article-modal');
+    const articleBack = document.getElementById('article-back');
+    const articleTitle = document.getElementById('article-title');
+    const articleSub = document.getElementById('article-sub');
+    const articleCover = document.getElementById('article-cover');
+    const articleText = document.getElementById('article-text');
+    const articleImages = document.getElementById('article-images');
 
     const persistKey = payload.persistKey || 'chat_story_seen_v1';
     let timer = null;
     let recallTimers = [];
     let activeAudio = null;
     let activeVoiceBtn = null;
+    let currentConversation = null;
     let storyState = { currentScene: 0, seen: {} };
     let touchStartX = 0;
     let touchStartY = 0;
@@ -2514,12 +2742,25 @@ export function renderWechatStoryHtml(input) {
     function emojify(text) {
       return String(text || '').replace(/\\[([^\\[\\]]+)\\]/g, (m, key) => emojiMap[key] || m);
     }
-    function mentionify(htmlText) {
-      return htmlText.replace(/(^|[\\s>])@([A-Za-z0-9_\\-\\u4e00-\\u9fa5]+)/g, '$1<span class="mention">@$2</span>');
+    function formatText(text, mentions) {
+      const source = String(text || '');
+      const ranges = Array.isArray(mentions) ? mentions : [];
+      if (!ranges.length) return linkify(emojify(source));
+      let html = '';
+      let cursor = 0;
+      ranges.forEach((range) => {
+        const start = Math.max(0, Math.min(Number(range.start), source.length));
+        const end = Math.max(start, Math.min(Number(range.end), source.length));
+        if (start < cursor || end <= start) return;
+        html += linkify(emojify(source.slice(cursor, start)));
+        html += '<span class="mention">' + esc(source.slice(start, end)) + '</span>';
+        cursor = end;
+      });
+      html += linkify(emojify(source.slice(cursor)));
+      return html;
     }
-    function formatText(text) {
-      return mentionify(linkify(emojify(text || '')));
-    }
+${articleMarkdownRuntimeSource()}
+${imageViewerRuntimeSource()}
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
@@ -2527,10 +2768,10 @@ export function renderWechatStoryHtml(input) {
     function articleKeyFromDoc(doc) {
       if (!doc) return "";
       var s = String(doc).trim();
-      if (!/\.(ya?ml)$/i.test(s)) return s;
+      if (!/\.(ya?ml|md|markdown)$/i.test(s)) return s;
       var parts = s.split("/");
       var base = parts[parts.length - 1];
-      return base.replace(/\.(ya?ml)$/i, "");
+      return base.replace(/\.(ya?ml|md|markdown)$/i, "");
     }
     function setVoiceState(btn, playing) {
       if (!btn) return;
@@ -2558,6 +2799,35 @@ export function renderWechatStoryHtml(input) {
       profileModal.classList.remove('show');
       profileModal.setAttribute('aria-hidden', 'true');
     }
+    function openInlineArticle(data) {
+      const articleId = data.articleId || "";
+      const repoArticle = articleId && currentConversation?.articles
+        ? (currentConversation.articles[articleId] || {})
+        : {};
+      const a = {
+        title: repoArticle.title || data.title || "未命名文章",
+        author: repoArticle.author || data.author || "",
+        publishRaw: repoArticle.publishAt || data.publishRaw || "",
+        cover: repoArticle.cover || data.cover || "",
+        text: repoArticle.text || data.text || "",
+        html: repoArticle.html || data.html || "",
+        images: Array.isArray(repoArticle.images) ? repoArticle.images : (data.images || [])
+      };
+      articleTitle.textContent = a.title;
+      articleSub.textContent = [a.author, a.publishRaw].filter(Boolean).join(" · ");
+      articleCover.style.display = a.cover ? "block" : "none";
+      articleCover.src = a.cover || "";
+      if (a.cover) articleCover.dataset.previewSrc = a.cover;
+      else articleCover.removeAttribute('data-preview-src');
+      articleText.innerHTML = a.html || renderMarkdown(a.text || "");
+      articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
+      articleModal.classList.add('show');
+      articleModal.setAttribute('aria-hidden', 'false');
+    }
+    function closeArticle() {
+      articleModal.classList.remove('show');
+      articleModal.setAttribute('aria-hidden', 'true');
+    }
     function resolveStoryDisplayName(conv, senderId) {
       const self = activeAccountId || conv.self;
       const users = conv.profiles?.users || {};
@@ -2577,14 +2847,25 @@ export function renderWechatStoryHtml(input) {
       const participants = Array.from(new Set((conv.messages || []).map((m) => String(m.senderId))));
       return participants.find((id) => id !== self) || conv.chat?.peer || '';
     }
+    function profileTimelineNameAtStage(profile, stageKey) {
+      const stageMs = parseIdentityReference(stageKey);
+      if (stageMs === null) return '';
+      let name = '';
+      const timeline = Array.isArray(profile?.identityTimeline) ? profile.identityTimeline : [];
+      timeline.forEach((entry) => {
+        if (!entry || typeof entry.effectiveAtMs !== 'number' || entry.effectiveAtMs > stageMs) return;
+        if (entry.name !== undefined) name = String(entry.name || '').trim();
+      });
+      return name;
+    }
     function conversationTitle(conv) {
       if (conv.chat?.type === 'single') {
         const peerId = getStoryPeerId(conv);
         const selfProfile = conv.profiles?.users?.[conv.self] || {};
+        const peerProfile = conv.profiles?.users?.[peerId] || {};
         return selfProfile.aliases?.contacts?.[peerId]
-          || conv.profiles?.users?.[peerId]?.name
+          || profileTimelineNameAtStage(peerProfile, currentStageMs())
           || conv.title
-          || peerId
           || '单聊';
       }
       return conv.title || '群聊';
@@ -2643,6 +2924,7 @@ export function renderWechatStoryHtml(input) {
       topTitle.textContent = ui.topTitle || '微信';
       sceneTitle.textContent = scene.title || '';
       phone.setAttribute('data-theme', ui.theme || 'wechat');
+      document.body.setAttribute('data-theme', ui.theme || 'wechat');
     }
     function renderQuote(quote, conv) {
       if (!quote) return '';
@@ -2663,11 +2945,11 @@ export function renderWechatStoryHtml(input) {
     }
     function renderContent(msg, conv) {
       if (msg.kind === 'image') {
-        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text) + '</div>' : '';
-        return '<img class="img" src="' + esc(msg.imageUrl || '') + '" alt="image"/>' + caption;
+        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text, msg.mentions) + '</div>' : '';
+        return '<img class="img" src="' + esc(msg.imageUrl || '') + '" data-preview-src="' + esc(msg.imageUrl || '') + '" alt="image"/>' + caption;
       }
       if (msg.kind === 'voice') {
-        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text) + '</div>' : '';
+        const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text, msg.mentions) + '</div>' : '';
         return '<button class="voice-btn" type="button" data-audio-url="' + esc(msg.audioUrl || '') + '">'
           + '<span class="voice-icon">▶</span>'
           + '<span class="voice-duration">' + esc(formatVoiceDuration(msg.durationSec)) + '</span>'
@@ -2679,23 +2961,32 @@ export function renderWechatStoryHtml(input) {
         if (doc) {
           const articleKey = articleKeyFromDoc(doc);
           const repo = conv.articles || {};
-          const fromRepo = repo[articleKey] || {};
+          const hasRepoArticle = Object.prototype.hasOwnProperty.call(repo, articleKey);
+          const fromRepo = hasRepoArticle ? (repo[articleKey] || {}) : {};
           const a = {
             title: fromRepo.title || c.title || articleKey,
             author: fromRepo.author || "",
+            publishRaw: fromRepo.publishAt || "",
             cover: fromRepo.cover || "",
             summary: fromRepo.summary || c.desc || c.summary || "",
+            summaryMentions: fromRepo.summaryMentions || c.descMentions || c.summaryMentions || [],
             text: fromRepo.markdown || fromRepo.body || fromRepo.text || "",
+            html: fromRepo.html || "",
             images: Array.isArray(fromRepo.images) ? fromRepo.images : []
           };
           const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
-          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+          const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary, a.summaryMentions) + '</div>' : '';
+          const articleAttrs = hasRepoArticle
+            ? (' data-article-id="' + esc(articleKey) + '"')
+            : (' data-title="' + esc(a.title || '') + '"'
+              + ' data-author="' + esc(a.author || '') + '"'
+              + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
+              + ' data-cover="' + esc(a.cover || '') + '"'
+              + ' data-text="' + esc(a.text || '') + '"'
+              + ' data-html="' + esc(a.html || '') + '"'
+              + ' data-images="' + esc((a.images || []).join(",")) + '"');
           return '<button class="article-card" type="button"'
-            + ' data-title="' + esc(a.title || '') + '"'
-            + ' data-author="' + esc(a.author || '') + '"'
-            + ' data-cover="' + esc(a.cover || '') + '"'
-            + ' data-text="' + esc(a.text || '') + '"'
-            + ' data-images="' + esc((a.images || []).join(",")) + '"'
+            + articleAttrs
             + '>'
             + '<div class="article-title">' + esc(a.title || '文档') + '</div>'
             + '<div class="article-meta">' + esc(a.author || '') + '</div>'
@@ -2710,23 +3001,33 @@ export function renderWechatStoryHtml(input) {
       if (msg.kind === 'article-card') {
         const raw = msg.articleCard || {};
         const repo = conv.articles || {};
-        const fromRepo = raw.refId ? (repo[raw.refId] || {}) : {};
+        const articleKey = articleKeyFromDoc(raw.refId || "");
+        const hasRepoArticle = articleKey ? Object.prototype.hasOwnProperty.call(repo, articleKey) : false;
+        const fromRepo = hasRepoArticle ? (repo[articleKey] || {}) : {};
         const a = {
           title: fromRepo.title || raw.title || "",
           author: fromRepo.author || raw.author || "",
+          publishRaw: fromRepo.publishAt || raw.publishAt || "",
           cover: fromRepo.cover || raw.cover || "",
           summary: fromRepo.summary || raw.summary || "",
+          summaryMentions: fromRepo.summaryMentions || raw.summaryMentions || [],
           text: fromRepo.text || raw.text || "",
+          html: fromRepo.html || raw.html || "",
           images: Array.isArray(fromRepo.images) ? fromRepo.images : (raw.images || [])
         };
         const cover = a.cover ? '<img class="article-cover" src="' + esc(a.cover) + '" alt="cover"/>' : '';
-        const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary) + '</div>' : '';
+        const summary = a.summary ? '<div class="article-summary">' + formatText(a.summary, a.summaryMentions) + '</div>' : '';
+        const articleAttrs = hasRepoArticle
+          ? (' data-article-id="' + esc(articleKey) + '"')
+          : (' data-title="' + esc(a.title || '') + '"'
+            + ' data-author="' + esc(a.author || '') + '"'
+            + ' data-publish-raw="' + esc(a.publishRaw || '') + '"'
+            + ' data-cover="' + esc(a.cover || '') + '"'
+            + ' data-text="' + esc(a.text || '') + '"'
+            + ' data-html="' + esc(a.html || '') + '"'
+            + ' data-images="' + esc((a.images || []).join(",")) + '"');
         return '<button class="article-card" type="button"'
-          + ' data-title="' + esc(a.title || '') + '"'
-          + ' data-author="' + esc(a.author || '') + '"'
-          + ' data-cover="' + esc(a.cover || '') + '"'
-          + ' data-text="' + esc(a.text || '') + '"'
-          + ' data-images="' + esc((a.images || []).join(",")) + '"'
+          + articleAttrs
           + '>'
           + '<div class="article-title">' + esc(a.title || '文章') + '</div>'
           + '<div class="article-meta">' + esc(a.author || '') + '</div>'
@@ -2742,10 +3043,13 @@ export function renderWechatStoryHtml(input) {
           + '<div class="contact-bio">' + esc(c.bio || '') + '</div></div>'
           + '</div>';
       }
-      return '<div>' + formatText(msg.text || '') + '</div>';
+      return '<div>' + formatText(msg.text || '', msg.mentions) + '</div>';
     }
     function renderMessage(msg, conv, options) {
       const opts = options || {};
+      if (msg.kind === 'status') {
+        return '<div class="end-tip" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + formatText(msg.text || '', msg.mentions) + '</div>';
+      }
       const user = conv.profiles.users?.[msg.senderId] || { name: msg.senderId, avatar: '' };
       const resolvedProfile = resolveEffectiveProfile(user, msg.timestamp || msg.timeText || '');
       const self = conv.self;
@@ -2812,6 +3116,7 @@ export function renderWechatStoryHtml(input) {
       const scene = currentScene();
       const conv = scene.conversations.find((x) => x.id === conversationId);
       if (!conv) return;
+      currentConversation = conv;
 
       listView.style.display = 'none';
       detailView.style.display = 'flex';
@@ -2893,8 +3198,11 @@ export function renderWechatStoryHtml(input) {
         const data = {
           title: articleBtn.dataset.title || "",
           author: articleBtn.dataset.author || "",
+          publishRaw: articleBtn.dataset.publishRaw || "",
           cover: articleBtn.dataset.cover || "",
+          articleId: articleBtn.dataset.articleId || "",
           text: articleBtn.dataset.text || "",
+          html: articleBtn.dataset.html || "",
           images: (articleBtn.dataset.images || "").split(",").filter(Boolean)
         };
         openInlineArticle(data);
@@ -2917,11 +3225,13 @@ export function renderWechatStoryHtml(input) {
       activeAudio.addEventListener('ended', stopActiveAudio);
       activeAudio.play().catch(() => stopActiveAudio());
     });
+    articleBack.addEventListener('click', closeArticle);
     nextSceneBtn.addEventListener('click', goNextScene);
     phone.addEventListener('touchstart', handleSwipeStart, { passive: true });
     phone.addEventListener('touchend', handleSwipeEnd, { passive: true });
 
     loadState();
+    installImageViewer();
     renderList();
     heartbeatEngine.start();
     document.addEventListener('click', function resumeHeartbeat() {

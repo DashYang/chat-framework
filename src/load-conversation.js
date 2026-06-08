@@ -3,6 +3,8 @@ import path from "path";
 import { parseSimpleYaml } from "./yaml.js";
 import { parseChatMarkdown } from "./parser.js";
 import { resolveQuotes, resolveTimes } from "./time.js";
+import { annotateConversationMentions } from "./mentions.js";
+import { parseMarkdownArticle, renderArticleMarkdown } from "./article-renderer.js";
 
 /**
  * Read UTF-8 text from disk.
@@ -104,6 +106,13 @@ function validateRawProfile(id, profile) {
   if (Object.prototype.hasOwnProperty.call(profile, "name") && hasNonEmptyIdentityTimeline(profile.identityTimeline)) {
     throw new Error(`Profile "${id}" violates the exclusivity rule: profile.name and identityTimeline cannot coexist.`);
   }
+  if (profile.identityTimeline !== undefined && (typeof profile.identityTimeline !== "object" || Array.isArray(profile.identityTimeline))) {
+    throw new Error(`Profile "${id}" has invalid identityTimeline. It must be a date-keyed object, e.g. identityTimeline: { "2024-01-01": { name: "Alice" } }.`);
+  }
+  const misplaced = Object.keys(profile).filter((key) => /^\d{4}-\d{2}-\d{2}/.test(key));
+  if (misplaced.length && !profile.identityTimeline) {
+    throw new Error(`Profile "${id}" has date keys outside identityTimeline: ${misplaced.slice(0, 3).join(", ")}. Move them under profile.identityTimeline.`);
+  }
 }
 
 export function resolveProfileIdentity(user, referenceTime) {
@@ -122,9 +131,33 @@ export function resolveProfileIdentity(user, referenceTime) {
   return { name, bio, avatar };
 }
 
+function resolveStaticProfileName(user) {
+  if (!user) return "";
+  return user.__hasExplicitName ? String(user.name || "").trim() : "";
+}
+
+function hasTimelineProfileName(user) {
+  const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
+  return timeline.some((entry) => entry && String(entry.name || "").trim());
+}
+
+function formatSingleChatTitleError({ selfId, peerId, selfProfile, peerProfile }) {
+  const aliasTitle = String(selfProfile?.aliases?.contacts?.[peerId] || "").trim();
+  const explicitName = resolveStaticProfileName(peerProfile);
+  const timelineNames = (Array.isArray(peerProfile?.identityTimeline) ? peerProfile.identityTimeline : [])
+    .map((entry) => String(entry?.name || "").trim())
+    .filter(Boolean);
+  return [
+    `single chat title cannot be inferred for peer "${peerId}".`,
+    `Checked sources: aliases.contacts.${peerId}=${aliasTitle ? JSON.stringify(aliasTitle) : "(missing)"}, profile.name=${explicitName ? JSON.stringify(explicitName) : "(missing)"}, identityTimeline.name=${timelineNames.length ? timelineNames.join(", ") : "(missing)"}.`,
+    `Fix: add chat.title, set aliases.contacts.${peerId} on self "${selfId}", or define profile.name / identityTimeline.name for "${peerId}".`
+  ].join(" ");
+}
+
 function normalizeUserProfile(id, parsed) {
   const profile = parsed.profile || parsed || {};
   validateRawProfile(id, profile);
+  const explicitName = Object.prototype.hasOwnProperty.call(profile, "name") ? String(profile.name || "").trim() : "";
   const officialArticles = profile.officialArticles || {};
   const rawArticleRefs = Array.isArray(officialArticles)
     ? officialArticles.map((x) => String(x))
@@ -133,7 +166,7 @@ function normalizeUserProfile(id, parsed) {
     ? profile.defaultView
     : "chat";
   const out = {
-    name: profile.name || id,
+    name: explicitName || id,
     id,
     avatar: profile.avatar || "",
     bio: profile.bio || "",
@@ -153,12 +186,23 @@ function normalizeUserProfile(id, parsed) {
     value: rawArticleRefs,
     enumerable: false
   });
+  Object.defineProperty(out, "__hasExplicitName", {
+    value: Boolean(explicitName),
+    enumerable: false
+  });
   return out;
+}
+
+const ARTICLE_FILE_EXT_RE = /\.(ya?ml|md|markdown)$/i;
+
+function articleIdFromFileName(fileName) {
+  return path.basename(String(fileName || "")).replace(ARTICLE_FILE_EXT_RE, "");
 }
 
 function normalizeArticle(id, parsed) {
   const article = parsed.article || {};
   const images = Array.isArray(article.images) ? article.images : (article.images ? [article.images] : []);
+  const text = article.markdown || article.body || article.text || article.content || "";
   return {
     id,
     title: article.title || id,
@@ -166,7 +210,8 @@ function normalizeArticle(id, parsed) {
     publishAt: article.publishAt || article.time || "",
     cover: article.cover || "",
     summary: article.summary || article.desc || "",
-    text: article.markdown || article.body || article.text || article.content || "",
+    text,
+    html: article.html || renderArticleMarkdown(text),
     images
   };
 }
@@ -175,7 +220,7 @@ function normalizeArticleRef(ref) {
   const value = String(ref || "").trim();
   if (!value) return "";
   return isExplicitArticleFileRef(value)
-    ? path.basename(value).replace(/\.(ya?ml)$/i, "")
+    ? articleIdFromFileName(value)
     : value;
 }
 
@@ -215,25 +260,58 @@ function loadArticlesFromDirectory(dirPath) {
   const stat = fs.statSync(dirPath);
   if (!stat.isDirectory()) return {};
   const articles = {};
+  const sources = {};
   const files = fs
     .readdirSync(dirPath)
-    .filter((name) => /\.(ya?ml)$/i.test(name))
+    .filter((name) => ARTICLE_FILE_EXT_RE.test(name))
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
 
   for (const fileName of files) {
-    const id = fileName.replace(/\.(ya?ml)$/i, "");
-    const parsed = parseSimpleYaml(readText(path.join(dirPath, fileName)));
-    articles[id] = normalizeArticle(id, parsed);
+    const id = articleIdFromFileName(fileName);
+    if (Object.prototype.hasOwnProperty.call(articles, id)) {
+      throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${path.join(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
+    }
+    const filePath = path.join(dirPath, fileName);
+    articles[id] = loadArticleFromFile(filePath, id);
+    sources[id] = filePath;
   }
   return articles;
 }
 
 function isExplicitArticleFileRef(ref) {
-  return /\.(ya?ml)$/i.test(String(ref || "").trim());
+  return ARTICLE_FILE_EXT_RE.test(String(ref || "").trim());
+}
+
+function firstMarkdownHeading(markdown) {
+  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  for (const line of lines) {
+    const match = line.match(/^#\s+(.+?)\s*$/);
+    if (match) return match[1].trim();
+  }
+  return "";
+}
+
+function normalizeMarkdownArticle(articleKey, raw) {
+  const { data, content } = parseMarkdownArticle(raw);
+  const article = data.article && typeof data.article === "object"
+    ? data.article
+    : data;
+  const parsed = {
+    article: {
+      ...article,
+      title: article.title || firstMarkdownHeading(content) || articleKey,
+      markdown: content
+    }
+  };
+  return normalizeArticle(articleKey, parsed);
 }
 
 function loadArticleFromFile(filePath, articleKey) {
-  const parsed = parseSimpleYaml(readText(filePath));
+  const raw = readText(filePath);
+  if (/\.(md|markdown)$/i.test(filePath)) {
+    return normalizeMarkdownArticle(articleKey, raw);
+  }
+  const parsed = parseSimpleYaml(raw);
   return normalizeArticle(articleKey, parsed);
 }
 
@@ -250,7 +328,7 @@ function mergeExplicitOfficialArticles(target, profiles, baseDir) {
       if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
       const filePath = path.resolve(baseDir, ref);
       if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-        throw new Error(`Official article file not found: ${ref}`);
+        throw new Error(`Official article file not found: ${ref}. Fix: check profile.officialArticles path relative to the build input folder, or use an existing article id.`);
       }
       target[articleId] = loadArticleFromFile(filePath, articleId);
     }
@@ -267,7 +345,7 @@ function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
     if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
     const filePath = path.resolve(resourceRootDir, docPath);
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      throw new Error(`link-card doc file not found: ${docPath}`);
+      throw new Error(`link-card doc file not found: ${docPath}. Fix: check [link-card] doc/ref path relative to the markdown resource root.`);
     }
     target[articleId] = loadArticleFromFile(filePath, articleId);
   }
@@ -319,6 +397,13 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
       profilePath,
       profileIsDirectory: profileStat.isDirectory()
     });
+    annotateConversationMentions({
+      messages: parsed.messages,
+      profiles,
+      articles,
+      chat,
+      sourceFile: formatPathForError(markdownPath)
+    });
     const withTime = resolveTimes(parsed.messages);
     const messages = resolveQuotes(withTime);
 
@@ -357,7 +442,26 @@ function normalizeChat(chat, messages, profiles, selfId) {
     }
     if (!out.title) {
       const selfProfile = profiles.users?.[out.self] || {};
-      out.title = selfProfile.aliases?.contacts?.[out.peer] || profiles.users?.[out.peer]?.name || out.peer;
+      const peerProfile = profiles.users?.[out.peer] || {};
+      const aliasTitle = String(selfProfile.aliases?.contacts?.[out.peer] || "").trim();
+      const profileTitle = resolveStaticProfileName(peerProfile);
+      const hasStageIdentityTitle = hasTimelineProfileName(peerProfile);
+      out.title = aliasTitle || profileTitle;
+      out.titleSource = aliasTitle ? "alias" : (profileTitle ? "profile.name" : "");
+      if (!out.title && hasStageIdentityTitle) {
+        out.titleUsesStageIdentity = true;
+        out.titleSource = "identityTimeline";
+      }
+      if (!out.title && !hasStageIdentityTitle) {
+        throw new Error(formatSingleChatTitleError({
+          selfId: out.self,
+          peerId: out.peer,
+          selfProfile,
+          peerProfile
+        }));
+      }
+    } else {
+      out.titleSource = "chat.title";
     }
   } else {
     if (!out.title) throw new Error("group chat requires chat.title");

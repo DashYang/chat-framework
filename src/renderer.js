@@ -1,4 +1,5 @@
 import { themes } from "./themes.js";
+import { imageViewerRuntimeSource } from "./article-markdown.js";
 
 const WECHAT_EMOJI_MAP = {
   微笑: "🙂",
@@ -130,16 +131,6 @@ function linkify(text) {
 }
 
 /**
- * Highlight @mentions in text.
- *
- * @param {string} htmlText - Text (possibly after linkify).
- * @returns {string} HTML with mention spans.
- */
-function mentionify(htmlText) {
-  return htmlText.replace(/(^|[\s>])@([A-Za-z0-9_\-\u4e00-\u9fa5]+)/g, '$1<span class="mention">@$2</span>');
-}
-
-/**
  * Convert WeChat emoji aliases like [微笑] into Unicode emoji.
  *
  * @param {string} text - Plain text content.
@@ -153,10 +144,26 @@ function emojify(text) {
  * Format plain message text to final HTML.
  *
  * @param {string} text - Plain text.
+ * @param {Array<{ start: number, end: number }>} [mentions] - Build-time mention ranges.
  * @returns {string} HTML fragment.
  */
-function formatText(text) {
-  return mentionify(linkify(emojify(text || "")));
+function formatText(text, mentions = []) {
+  const source = String(text || "");
+  const ranges = Array.isArray(mentions) ? mentions : [];
+  if (!ranges.length) return linkify(emojify(source));
+
+  let html = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    const start = Math.max(0, Math.min(Number(range.start), source.length));
+    const end = Math.max(start, Math.min(Number(range.end), source.length));
+    if (start < cursor || end <= start) continue;
+    html += linkify(emojify(source.slice(cursor, start)));
+    html += `<span class="mention">${escapeHtml(source.slice(start, end))}</span>`;
+    cursor = end;
+  }
+  html += linkify(emojify(source.slice(cursor)));
+  return html;
 }
 
 /**
@@ -173,20 +180,33 @@ function formatVoiceDuration(sec) {
 function articleKeyFromDoc(doc) {
   if (!doc) return "";
   const s = String(doc).trim();
-  if (!/\.(ya?ml)$/i.test(s)) return s;
+  if (!/\.(ya?ml|md|markdown)$/i.test(s)) return s;
   const parts = s.split("/");
   const base = parts[parts.length - 1];
-  return base.replace(/\.(ya?ml)$/i, "");
+  return base.replace(/\.(ya?ml|md|markdown)$/i, "");
 }
 
-function resolveEffectiveProfileName(user) {
-  if (user.name) return user.name;
-  const timeline = Array.isArray(user.identityTimeline) ? user.identityTimeline : [];
-  if (timeline.length > 0) {
-    const last = timeline[timeline.length - 1];
-    if (last && last.name !== undefined) return last.name;
+function parseIdentityReference(raw) {
+  if (!raw) return null;
+  const text = String(raw).trim();
+  if (!text) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(text)
+    ? `${text}T00:00:00`
+    : text.replace(" ", "T");
+  const time = new Date(normalized).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function resolveEffectiveProfileName(user, referenceTime = Date.now()) {
+  const refMs = parseIdentityReference(referenceTime) ?? Date.now();
+  let name = user?.name || "";
+  const timeline = Array.isArray(user?.identityTimeline) ? user.identityTimeline : [];
+  for (const entry of timeline) {
+    if (!entry || typeof entry !== "object") continue;
+    if (typeof entry.effectiveAtMs !== "number" || entry.effectiveAtMs > refMs) continue;
+    if (entry.name !== undefined) name = entry.name;
   }
-  return "";
+  return name;
 }
 
 function resolveDisplayName(senderId, ctx, isSelf = false) {
@@ -216,7 +236,7 @@ function renderQuote(q, ctx) {
  */
 function resolveArticleCard(m, ctx) {
   const a = m.articleCard || {};
-  const refId = a.refId || "";
+  const refId = articleKeyFromDoc(a.refId || "");
   if (!refId) return a;
   const fromRepo = ctx.articles?.[refId] || {};
   return {
@@ -225,7 +245,9 @@ function resolveArticleCard(m, ctx) {
     author: fromRepo.author || a.author || "",
     cover: fromRepo.cover || a.cover || "",
     summary: fromRepo.summary || a.summary || "",
+    summaryMentions: fromRepo.summaryMentions || a.summaryMentions || [],
     text: fromRepo.text || a.text || "",
+    html: fromRepo.html || a.html || "",
     images: Array.isArray(fromRepo.images) ? fromRepo.images : (a.images || []),
     publishAt: fromRepo.publishAt || ""
   };
@@ -245,11 +267,11 @@ function resolveContactCard(m, ctx) {
 
 function renderContent(m, ctx) {
   if (m.kind === "image") {
-    const caption = m.text ? `<div class="img-caption">${formatText(m.text)}</div>` : "";
-    return `<img class="img" src="${escapeHtml(m.imageUrl || "")}" alt="image"/>${caption}`;
+    const caption = m.text ? `<div class="img-caption">${formatText(m.text, m.mentions)}</div>` : "";
+    return `<img class="img" src="${escapeHtml(m.imageUrl || "")}" data-preview-src="${escapeHtml(m.imageUrl || "")}" alt="image"/>${caption}`;
   }
   if (m.kind === "voice") {
-    const caption = m.text ? `<div class="img-caption">${formatText(m.text)}</div>` : "";
+    const caption = m.text ? `<div class="img-caption">${formatText(m.text, m.mentions)}</div>` : "";
     return `<button class="voice-btn" type="button" data-audio-url="${escapeHtml(m.audioUrl || "")}">
       <span class="voice-icon">▶</span>
       <span class="voice-duration">${escapeHtml(formatVoiceDuration(m.durationSec))}</span>
@@ -260,24 +282,31 @@ function renderContent(m, ctx) {
     const doc = (c.doc || c.ref || "").trim();
     if (doc) {
       const articleKey = articleKeyFromDoc(doc);
-      const fromRepo = ctx.articles?.[articleKey] || {};
+      const hasRepoArticle = Object.prototype.hasOwnProperty.call(ctx.articles || {}, articleKey);
+      const fromRepo = hasRepoArticle ? (ctx.articles?.[articleKey] || {}) : {};
       const a = {
         title: fromRepo.title || c.title || articleKey,
         author: fromRepo.author || "",
         cover: fromRepo.cover || "",
         summary: fromRepo.summary || c.desc || c.summary || "",
+        summaryMentions: fromRepo.summaryMentions || c.descMentions || c.summaryMentions || [],
         text: fromRepo.text || "",
+        html: fromRepo.html || "",
         images: Array.isArray(fromRepo.images) ? fromRepo.images : [],
         publishAt: fromRepo.publishAt || ""
       };
       const cover = a.cover ? `<img class="article-cover" src="${escapeHtml(a.cover)}" alt="cover"/>` : "";
-      const summary = a.summary ? `<div class="article-summary">${formatText(a.summary)}</div>` : "";
-      return `<button class="article-card" type="button"
-        data-title="${escapeHtml(a.title || "")}"
+      const summary = a.summary ? `<div class="article-summary">${formatText(a.summary, a.summaryMentions)}</div>` : "";
+      const articleAttrs = hasRepoArticle
+        ? `data-article-id="${escapeHtml(articleKey || "")}"`
+        : `data-title="${escapeHtml(a.title || "")}"
         data-author="${escapeHtml(a.author || "")}"
         data-cover="${escapeHtml(a.cover || "")}"
         data-text="${escapeHtml(a.text || "")}"
-        data-images="${escapeHtml((a.images || []).join(","))}">
+        data-html="${escapeHtml(a.html || "")}"
+        data-images="${escapeHtml((a.images || []).join(","))}"`;
+      return `<button class="article-card" type="button"
+        ${articleAttrs}>
         <div class="article-title">${escapeHtml(a.title || "文档")}</div>
         <div class="article-meta">${escapeHtml(a.author || "")}</div>
         ${cover}
@@ -293,13 +322,18 @@ function renderContent(m, ctx) {
   if (m.kind === "article-card") {
     const a = resolveArticleCard(m, ctx);
     const cover = a.cover ? `<img class="article-cover" src="${escapeHtml(a.cover)}" alt="cover"/>` : "";
-    const summary = a.summary ? `<div class="article-summary">${formatText(a.summary)}</div>` : "";
-    return `<button class="article-card" type="button"
-      data-title="${escapeHtml(a.title || "")}"
+    const summary = a.summary ? `<div class="article-summary">${formatText(a.summary, a.summaryMentions)}</div>` : "";
+    const hasRepoArticle = !!a.refId && Object.prototype.hasOwnProperty.call(ctx.articles || {}, a.refId);
+    const articleAttrs = hasRepoArticle
+      ? `data-article-id="${escapeHtml(a.refId || "")}"`
+      : `data-title="${escapeHtml(a.title || "")}"
       data-author="${escapeHtml(a.author || "")}"
       data-cover="${escapeHtml(a.cover || "")}"
       data-text="${escapeHtml(a.text || "")}"
-      data-images="${escapeHtml((a.images || []).join(","))}">
+      data-html="${escapeHtml(a.html || "")}"
+      data-images="${escapeHtml((a.images || []).join(","))}"`;
+    return `<button class="article-card" type="button"
+      ${articleAttrs}>
       <div class="article-title">${escapeHtml(a.title || "文章")}</div>
       <div class="article-meta">${escapeHtml(a.author || "")}</div>
       ${cover}
@@ -317,7 +351,7 @@ function renderContent(m, ctx) {
       </div>
     </div>`;
   }
-  return `<div>${formatText(m.text || "")}</div>`;
+  return `<div>${formatText(m.text || "", m.mentions)}</div>`;
 }
 
 /**
@@ -331,6 +365,9 @@ function renderContent(m, ctx) {
  * renderMessage(message, { profiles, chat })
  */
 function renderMessage(m, ctx) {
+  if (m.kind === "status") {
+    return `<div class="end-tip">${formatText(m.text || "", m.mentions)}</div>`;
+  }
   const u = ctx.profiles.users[m.senderId] || { name: m.senderId, avatar: "" };
   const selfId = ctx.chat.self;
   const displayName = resolveDisplayName(m.senderId, ctx, m.senderId === selfId);
@@ -369,6 +406,7 @@ export function renderHtml(ctx) {
   const themeId = ctx.frontmatter.theme || "wechat";
   const theme = themes[themeId] || themes.wechat;
   const profileUsers = safeJson(ctx.profiles?.users || {});
+  const articleRepo = safeJson(ctx.articles || {});
 
   const chatTitle = ctx.chat.title || ctx.frontmatter.title || "聊天记录";
   const subtitle = ctx.chat.type === "group"
@@ -385,7 +423,7 @@ export function renderHtml(ctx) {
   <title>${escapeHtml(chatTitle)}</title>
   <style>${theme.css}</style>
 </head>
-<body>
+<body data-theme="${escapeHtml(themeId)}">
   <main class="chat">
     <header class="header">
       <h1>${escapeHtml(chatTitle)}</h1>
@@ -418,9 +456,17 @@ export function renderHtml(ctx) {
       <div id="article-images" class="article-page-images"></div>
     </div>
   </aside>
+  <aside id="image-viewer" class="image-viewer" aria-hidden="true">
+    <button id="image-viewer-close" class="image-viewer-close" type="button" aria-label="关闭">×</button>
+    <div id="image-viewer-stage" class="image-viewer-stage">
+      <img id="image-viewer-img" class="image-viewer-img" src="" alt="image"/>
+    </div>
+    <div id="image-viewer-status" class="image-viewer-status">100%</div>
+  </aside>
   <script>
     (() => {
       const profileUsers = ${profileUsers};
+      const articleRepo = ${articleRepo};
       const modal = document.getElementById('profile-modal');
       const avatar = document.getElementById('profile-avatar');
       const nameEl = document.getElementById('profile-name');
@@ -480,7 +526,7 @@ export function renderHtml(ctx) {
         let html = esc(raw || '');
         html = html.replace(/\\x60([^\\x60]+)\\x60/g, '<code>$1</code>');
         html = html.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, (_m, alt, url) => (
-          '<img src="' + esc(safeMarkdownUrl(url)) + '" alt="' + esc(alt) + '"/>'
+          '<img class="previewable-image" src="' + esc(safeMarkdownUrl(url)) + '" data-preview-src="' + esc(safeMarkdownUrl(url)) + '" alt="' + esc(alt) + '"/>'
         ));
         html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (_m, text, url) => (
           '<a href="' + esc(safeMarkdownUrl(url)) + '" target="_blank" rel="noreferrer">' + text + '</a>'
@@ -591,18 +637,29 @@ export function renderHtml(ctx) {
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
       }
+      function articleFromButton(btn) {
+        const articleId = btn.dataset.articleId || '';
+        const repoArticle = articleId ? (articleRepo[articleId] || {}) : {};
+        return {
+          title: repoArticle.title || btn.dataset.title || '',
+          author: repoArticle.author || btn.dataset.author || '',
+          publishRaw: repoArticle.publishAt || btn.dataset.publishRaw || '',
+          cover: repoArticle.cover || btn.dataset.cover || '',
+          text: repoArticle.text || btn.dataset.text || '',
+          html: repoArticle.html || btn.dataset.html || '',
+          images: Array.isArray(repoArticle.images) ? repoArticle.images : (btn.dataset.images || '').split(',').filter(Boolean)
+        };
+      }
       function openArticle(btn) {
-        const title = btn.dataset.title || '';
-        const author = btn.dataset.author || '';
-        const cover = btn.dataset.cover || '';
-        const text = btn.dataset.text || '';
-        const images = (btn.dataset.images || '').split(',').filter(Boolean);
-        articleTitle.textContent = title;
-        articleSub.textContent = author;
-        articleCover.style.display = cover ? 'block' : 'none';
-        articleCover.src = cover || '';
-        articleText.innerHTML = renderMarkdown(text);
-        articleImages.innerHTML = images.map((url) => '<img src="' + url + '" alt="image"/>').join('');
+        const article = articleFromButton(btn);
+        articleTitle.textContent = article.title;
+        articleSub.textContent = [article.author, article.publishRaw].filter(Boolean).join(' · ');
+        articleCover.style.display = article.cover ? 'block' : 'none';
+        articleCover.src = article.cover || '';
+        if (article.cover) articleCover.dataset.previewSrc = article.cover;
+        else articleCover.removeAttribute('data-preview-src');
+        articleText.innerHTML = article.html || renderMarkdown(article.text);
+        articleImages.innerHTML = (article.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
         articleModal.classList.add('show');
         articleModal.setAttribute('aria-hidden', 'false');
       }
@@ -663,6 +720,8 @@ export function renderHtml(ctx) {
           });
         });
       });
+${imageViewerRuntimeSource()}
+      installImageViewer();
     })();
   </script>
 </body>

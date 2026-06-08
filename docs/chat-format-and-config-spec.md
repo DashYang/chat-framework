@@ -25,17 +25,17 @@
    - 通过 `renderWechatStoryHtml` 以编程方式调用。
    - 串联多个会话总览场景，当前场景看完后支持触屏右滑或按钮点击进入下一幕。
 
-### 1.1 系统时间 (System Time)
+### 1.1 阶段时间 (Stage Time)
 
-在会话总览页中，顶部状态栏中心显示的时间被称为 **系统时间**。
-- **非实时时间**: 它不是真实的挂钟时间，而是由当前剧情阶段驱动的逻辑时间。
-- **阶段驱动**: 在会话总览页运行时，系统时间会根据当前阶段自动更新。当用户完成当前阶段的必要互动后，系统时间会自动推移到下一阶段。
-- **与 `story.yml` 的关系**: `story.yml` 用于定义账号推进顺序；它会影响“当前账号正在走哪条推进线”，但系统时间本身来自当前账号的阶段日期，而不是来自真实物理时间。
-- **显示格式**: 会话总览页初始会显示 `ui.yml` 中的 `statusBar.time`，进入运行态后会展示当前阶段日期。
+在会话总览页中，顶部状态栏中心显示的时间被称为 **阶段时间**。
+- **非实时时间**: 它不是操作系统时间，也不是真实的挂钟时间，而是由当前剧情阶段驱动的逻辑时间。
+- **阶段驱动**: 在会话总览页运行时，阶段时间会根据当前阶段自动更新。当用户完成当前阶段的必要互动后，阶段时间会自动推移到下一阶段。
+- **与 `story.yml` 的关系**: `story.yml` 用于定义账号推进顺序；它会影响“当前账号正在走哪条推进线”，但阶段时间本身来自当前账号的阶段小时，而不是来自真实物理时间。
+- **显示格式**: 会话总览页初始会显示 `ui.yml` 中的 `statusBar.time`，进入运行态后会展示当前阶段小时。
 
 ### 1.2 账号推进 (Account Progression)
 
-这是一种进阶的互动机制，通过 `story.yml` 定义。它允许开发者控制多个账号的解锁顺序，并基于用户的阅读进度推进不同账号各自的系统时间与可见内容。
+这是一种进阶的互动机制，通过 `story.yml` 定义。它允许开发者控制多个账号的解锁顺序，并基于用户的阅读进度推进不同账号各自的阶段时间与可见内容。
 
 ---
 
@@ -117,7 +117,7 @@ text block 2
 - 同一个 `@senderId` 头下面，**每个用空行分隔的文本块**都会被解析成一条独立消息
 - 该形式只适用于纯文本消息（包括纯 URL 文本，它仍会自动转为链接卡片）
 - 该形式允许第一条显式写时间；拆分后**只有第一段**继承这个时间，后续段落按现有规则自动推导时间
-- 如果某条消息需要 `#messageId`、或任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`），则仍然必须为该消息单独写完整消息头
+- 如果某条消息需要 `#messageId`、或任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[status]`），则仍然必须为该消息单独写完整消息头
 - 在简化写法里，空行不再表示“同一条消息的分段”，而是表示“下一条同发送者消息”
 
 示例：
@@ -169,6 +169,7 @@ text block 2
 - `[recall]` / `[recall:+10s]`：消息撤回（可设置撤回延时）
 - `[article]`：微信文章转发卡片
 - `[contact-card]`：联系人名片
+- `[status]`：居中状态提示，正文为提示文案，样式与默认“当前聊天已结束”一致
 - `[heartbeat:1]` / `[heartbeat:2]` / `[heartbeat:3]`：自动播放时将背景心跳声切换为对应节奏档位（1=慢、2=中、3=快）
 - `[heartbeat:end]`：恢复默认正常节奏心跳
 
@@ -237,6 +238,13 @@ duration: 8
 id: a1
 ```
 
+#### 状态提示
+
+```md
+@system #m11 [+5s] [status]
+对方开启了朋友验证
+```
+
 #### 联系人名片
 
 ```md
@@ -249,7 +257,7 @@ bio: 社区民警
 
 ### 2.5 文本增强效果
 
-- `@用户名` 会在渲染时高亮显示（`@mention` 效果）
+- `@mention` 会高亮显示，但必须匹配当前会话 profiles 中的 profile id、`name`、`nickName`、`identityTimeline.name`，或当前账号的 `aliases.contacts` / `aliases.selfInGroups`。构建器会按名称长度降序匹配，所以 `今天有新同事@周正入职` 可正确高亮 `@周正`；若 `@` 后的名称无法匹配已知 profile，构建会报错。
 - 文本中的 URL 会自动转为可点击链接
 - 点击头像可查看用户的资料卡（包含 `name`、`bio` 等）。其中 `name` 是正式名称（Canonical Nickname），作为资料卡标题显示。
 
@@ -288,8 +296,8 @@ users:
 - **`users.<id>.identityTimeline`**: 随日期变化的身份信息。
   - **时间基准**: 
     - 在单会话页回放中，随当前消息的时间戳动态变化。
-    - 在会话总览页中，随当前账号的**系统时间**动态变化。
-    - 在账号切换列表（“我”Tab）中，每个账号卡片根据**该账号自身当前系统时间**解析身份。
+    - 在会话总览页中，随当前账号的**阶段时间**动态变化。
+    - 在账号切换列表（“我”Tab）中，每个账号卡片根据**该账号自身当前阶段时间**解析身份。
   - 支持字段：`name`、`bio`、`avatar`。其中 `avatar` 用于需要按剧情日期变化头像的资料展示与社交作者展示。
 
 
@@ -323,21 +331,40 @@ profile:
 
 说明：
 - 朋友圈只支持文字和图片
-- `publishAt` 晚于当前系统时间（由账号推进驱动）的内容不会显示
+- `publishAt` 所在小时晚于当前阶段小时（由账号推进驱动）时不会显示
 - `author` 为可选字段；未填写时默认使用所属 profile 的当前生效 `name/avatar`
-- `author: "@<profileId>"` 可引用另一个 profile，渲染时会按当前系统时间解析该 profile 的 `identityTimeline.name/avatar`
-- `author` 也可写成对象（如 `name/avatar/bio` 或 `refId/id/profileId`），对象引用同样会按当前系统时间解析对应 profile
+- `author: "@<profileId>"` 可引用另一个 profile，渲染时会按当前阶段小时解析该 profile 的 `identityTimeline.name/avatar`
+- `author` 也可写成对象（如 `name/avatar/bio` 或 `refId/id/profileId`），对象引用同样会按当前阶段小时解析对应 profile
 
 ### 3.2 微信文章配置
 
-文章实体统一放在 `articles/` 目录下，profile 中保存文章文件路径引用：
+文章实体统一放在 `articles/` 目录下，profile 中保存文章文件路径引用。新文章推荐使用 Markdown frontmatter；旧 YAML article 文件继续兼容：
 
 ```yml
 profile:
-  officialArticles: ["./articles/a1.yml", "./articles/a2.yml"]
+  officialArticles: ["./articles/a1.md", "./articles/a2.yml"]
 ```
 
-`articles/a1.yml`:
+`articles/a1.md`（推荐）:
+
+```md
+---
+publishAt: "2026-04-27 08:30:00"
+title: "文章标题"
+author: "公众号名称"
+cover: "https://example.com/cover.jpg"
+summary: "文章摘要（可选）"
+images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
+---
+
+正文第一段，支持 **粗体**、*斜体* 和 [链接](https://example.com)。
+
+## 小标题
+
+![正文图片](https://example.com/body.jpg)
+```
+
+`articles/a1.yml`（兼容）:
 
 ```yml
 article:
@@ -352,8 +379,11 @@ article:
 
 说明：
 - 入口在会话总览页底部“文章”
-- `officialArticles` 推荐直接填写文章 yaml 文件路径；folder build 下相对路径以输入根目录解析，single-file build 下相对路径以 markdown 所在目录解析
-- 仅展示 `publishAt <= 当前系统时间` 的文章
+- `officialArticles` 推荐直接填写文章文件路径，也可以填写无扩展 article id；folder build 下相对路径以输入根目录解析，single-file build 下相对路径以 markdown 所在目录解析
+- Markdown 文章的 frontmatter 字段与 YAML 文章字段语义一致；frontmatter 之后的正文作为文章正文渲染
+- 如果 Markdown 文章没有 frontmatter，会取第一个 H1 作为标题，否则使用文件名 id；其他元信息可为空
+- 文章正文由 `markdown-it` 在构建期渲染，支持常见 Markdown/GFM 表格与删除线；原始 HTML 默认禁用，会作为文本显示
+- 仅展示 `publishAt` 所在小时 `<= 当前阶段小时` 的文章
 - 支持文字+图片
 
 ## 4. chat.yml 规范
@@ -383,6 +413,7 @@ chat:
 - `self`：当前用户视角的 sender id（**单文件构建时必须指定**；folder 模式下由 profile id 自动推断）
 - 群聊 yml 只需保留 `title/groupInfo`；`self` 由当前 profile 视角隐含
 - 单聊**在 folder 构建模式下**可不配置 `chat.yml`，自动由消息参与者推断 `peer/title`；**单文件构建模式下必须配置** `self`
+- 单聊标题不会回退到 profile id / 文件名；若未配置 `chat.title`，则必须能从当前账号 `aliases.contacts.<peerId>`、对方 `profile.name` 或按当前阶段时间解析出的 `identityTimeline.name` 推断，否则构建失败
 - 单聊不需要配置 `peer`（自动由消息参与者推断）
 - 群聊不需要配置 `members`，`groupInfo.name` 也不需要（直接使用 `title`）
 
@@ -413,15 +444,17 @@ ui:
   topTitle: "微信"
   theme: "wechat"
   persistKey: "chat_framework_seen_v1"
+  debug: false
 ```
 
 字段说明：
 - `statusBar.carrier`：状态栏运营商文案
-- `statusBar.time`：状态栏初始时间文案（若启用 `story.yml`，此字段会被剧情驱动的系统时间覆盖）
+- `statusBar.time`：状态栏初始时间文案（若启用 `story.yml`，此字段会被剧情驱动的阶段时间覆盖）
 - `statusBar.battery`：状态栏电量文案
 - `topTitle`：总览页主界面标题（默认“微信”）
 - `theme`：总览页主题，可选 `wechat`（默认）、`iterms`（绿黑终端风格）。`paper` 主题仅单会话页可用
 - `persistKey`：回放完成状态的本地存储键（默认 `"chat_framework_seen_v1"`）
+- `debug`：是否输出 `[chat-debug]` 运行时日志（默认 `false`；设为 `true` 时启用）
 
 ## 5.2 story.yml 规范（账号推进/切换）
 
@@ -437,14 +470,21 @@ story:
 
 运行时行为：
 - 初始仅解锁第一个账号。
-- 当当前账号时间轴推进到最后一天，且该账号在当前系统时间下“微信/文章/发现”的未读全部清零，会解锁下一个账号，并在“我”Tab 显示红点提示。
-- 已解锁账号可在“我”中随时切换；系统时间进度与已读状态按账号隔离。
+- 当当前账号时间轴推进到最后一个小时，且该账号在当前阶段小时下“微信/文章/发现”的未读全部清零，会解锁下一个账号，并显示顶部轻提示、在“我”Tab 显示红点提示。
+- 解锁轻提示中的账号名使用该账号 `identityTimeline` 按生效时间排序后的第一个 `name`；没有 timeline 名称时回退到显式 `profile.name`，最后回退到账号 id。
+- 已解锁账号可在“我”中随时切换；阶段时间进度与已读状态按账号隔离。
+
+## 5.3 Build report
+
+`build:folder` 成功后会在命令行打印默认简报，包括账号数、会话数、文章数、朋友圈数、阶段小时数、story 账号顺序、单聊标题来源，以及每个账号下 `聊天 / 文档 / 社交 / 总计` 的文字数。
+
+文字数用于创作规模参考，按可读文本字符估算：聊天统计消息正文、caption、卡片摘要和状态文案；文档统计文章标题、摘要和正文 Markdown 原文；社交统计朋友圈作者展示名与正文。URL、图片/音频路径、HTML 标签和内部 id 不计入。
 
 
-## 5.3 会话自动播放红点
+## 5.4 会话自动播放红点
 
-- 会话列表中，当天有“可自动播放但未播放完”的消息时，会话项显示小红点。
-- 播放完当天内容后，该会话红点消失。
+- 会话列表中，当前小时有“可自动播放但未播放完”的消息时，会话项显示小红点。
+- 播放完当前小时内容后，该会话红点消失。
 
 ## 6. 完整示例
 

@@ -5,13 +5,13 @@
 ## 核心能力
 
 - **单会话页 (Single Conversation Page)**: 支持引用、图片、链接卡片、语音、撤回等全量微信特性，可作为独立页面分享。
-- **会话总览页 (Conversation Hub)**: 聚合多会话、朋友圈、文章列表。支持 **账号推进 (Account Progression)** 与 **系统时间 (System Time)** 驱动的沉浸式互动体验。
-- **系统时间 (System Time)**: 位于总览页顶部的状态栏中心时间。它不是现实时钟，而是页面内部的逻辑时间；在运行过程中会随当前账号的阶段推进而更新。
+- **会话总览页 (Conversation Hub)**: 聚合多会话、朋友圈、文章列表。支持 **账号推进 (Account Progression)** 与 **阶段时间 (Stage Time)** 驱动的沉浸式互动体验。
+- **阶段时间 (Stage Time)**: 位于总览页顶部的状态栏中心时间。它不是操作系统时间或现实时钟，而是页面内部的剧情阶段时间；在运行过程中会随当前账号的阶段推进而更新。
 
 ## 运行
 
 ```bash
-cd /Users/dash/workspace/DashYang.github.io/Room/chat-framework
+cd /Users/dash/workspace/chat-framework
 npm run build           # 生成单会话页 (dist/index.html)
 npm run build:paper     # 生成单会话页 (paper 主题)
 npm run build:folder    # 生成会话总览页 (dist/wechat-hub.html)
@@ -24,6 +24,28 @@ npm run hooks:install
 - `dist/paper.html`（单会话页，paper）
 - `dist/wechat-hub.html`（会话总览页）
 - `dist/showcase-wechat-hub.html`（全功能预览基线）
+
+## 命令行安装
+
+本地全局安装：
+
+```bash
+cd /Users/dash/workspace/chat-framework
+npm link
+```
+
+安装后可在任意目录使用：
+
+```bash
+chat-framework build examples/chat.md dist/index.html
+chat-framework build:folder examples/showcase dist/showcase-wechat-hub.html
+chat-framework build-folder examples/showcase dist/showcase-wechat-hub.html
+chat-framework help
+```
+
+`npm link` 创建的是全局命令到当前项目的 symlink。后续更新 `chat-framework` 的代码后，命令会直接使用最新本地版本，不需要重新 `npm link`。只有移动项目目录、删除 link、修改命令名或换机器时，才需要重新 link。
+
+`build:folder` 成功后会默认输出 build report：账号/会话/文章/朋友圈/阶段小时摘要、单聊标题来源，以及每个账号下 `聊天 / 文档 / 社交 / 总计` 的文字数。文字数按可读文本字符估算，不统计 URL、资源路径、HTML 标签和内部 id。
 
 ## Markdown 格式
 
@@ -44,30 +66,55 @@ specVersion: "1.0"
 ```
 
 - 头部语法：`@发送者 #消息ID [可选时间] [可选标签...]`
-- 标签：`[image]`、`[link-card]`、`[quote:消息ID]`、`[voice]`、`[recall]`、`[recall:+10s]`、`[article]`、`[contact-card]`
+- 标签：`[image]`、`[link-card]`、`[quote:消息ID]`、`[voice]`、`[recall]`、`[recall:+10s]`、`[article]`、`[contact-card]`、`[status]`
 - 时间：第一条必须绝对时间；后续可 `+30s/+2m/+1h/+1d`，也可省略（按消息字数自动推导秒数）
 - `#消息ID` 可省略（自动生成为 `m1/m2/...`）
-- `@用户名` 在文本中会高亮显示
+- 文本中的 `@mention` 会高亮显示，但必须匹配当前会话 profiles 中的 id、`name`、`nickName`、`identityTimeline.name` 或当前账号 aliases；写错会在构建时报错。`@` 可以贴着中文句子出现，例如 `今天有新同事@周正入职`。
 - `[image]` 支持“图 + 文字说明”（图片地址后续行作为说明）
 - `[voice]` 支持语音消息（首行是音频 URL/路径，可选 `duration: 秒数` 和转写文本）
 - `[recall]` / `[recall:+10s]` 支持撤回效果（详情页回放时会在设置延时后变为“撤回了一条消息”）
 - `[article]` 支持在聊天中转发文章卡片，推荐用 `id` 引用 `articles/` 目录中的文章
 - `[contact-card]` 支持在聊天中发送联系人名片（头像/姓名/昵称/bio）
+- `[status]` 支持居中的状态提示，显示效果与“当前聊天已结束”一致，例如“对方开启了朋友验证”
 - 点击聊天头像可查看 `profiles` 中的名字（`name` 为正式名称）和简介（`bio`）；当配置了 `identityTimeline` 时，系统以其按参考时间解析出的生效名称为准，不再使用顶层的 `profile.name`。`aliases.contacts` 中定义的备注名则用于聊天气泡上方、总览页预览及标题栏。
-- 总览页支持“发现 -> 朋友圈”，仅展示文字/图片，并按当前系统时间过滤未来动态
-- 总览页支持“文章 -> 文章列表”，文章正文统一来自 `articles/` 目录；profile 仅保存文章 id 引用。文章正文可用 `markdown`/`body`/`text`/`content` 字段，支持标题、段落、引用、列表、粗体/斜体、链接和图片
-- 总览页支持“自动播放未完成红点”：当天可播放内容未看完时，会话项显示红点；当天内容播放完毕后红点立即消失。底部“微信”tab 的数字按待播放会话数统计，不按消息条数统计；历史已有消息不计入当天数字
+- 总览页支持“发现 -> 朋友圈”，仅展示文字/图片，并按当前阶段小时过滤未来动态
+- 总览页支持“文章 -> 文章列表”，文章正文统一来自 `articles/` 目录；profile 仅保存文章 id 引用。新文章推荐使用 Markdown frontmatter（`.md`/`.markdown`），旧的 YAML article（`.yml`/`.yaml`）继续兼容；正文支持标题、段落、引用、列表、粗体/斜体、链接和图片
+- 文章正文由 `markdown-it` 在构建期渲染，原始 HTML 默认禁用；正文图片会自动接入图片预览
+- 总览页支持“自动播放未完成红点”：当前阶段小时可播放内容未看完时，会话项显示红点；当前小时内容播放完毕后红点立即消失。底部“微信”tab 的数字按待播放会话数统计，不按消息条数统计；历史已有消息不计入当前小时数字
 - 会话列表预览规则：
-  - 有未读红点时，预览显示“当天第一条可播放消息”
-  - 当天已读完时，预览显示“当前会话在当前日期下的最后一条消息”
+  - 有未读红点时，预览显示“当前小时第一条可播放消息”
+  - 当前小时已读完时，预览显示“当前会话在当前阶段小时下的最后一条消息”
 
 ## YAML
 
 - `profiles.yml` 或 `profiles/`：发言人信息（支持目录模式：每个用户一个 yml 文件）
-- `articles/`：微信文章内容（每篇一个 yml，文件名即 article id）
+- `articles/`：微信文章内容（推荐每篇一个 md，也兼容 yml；文件名即 article id）
 - `chat.yml`：会话元信息（仅群聊推荐保留；单聊可不配置）
 
-文章示例：
+推荐文章示例（`articles/a1.md`）：
+
+```md
+---
+publishAt: "2026-04-29 09:15:00"
+title: "一篇支持 Markdown 的文章"
+author: "Room"
+summary: "列表页摘要仍然用独立字段。"
+cover: "https://picsum.photos/seed/article-cover/800/420"
+---
+
+# 正文标题
+
+第一段正文，支持 **粗体**、*斜体* 和 [链接](https://example.com)。
+
+> 这里是一段引用。
+
+- 第一条
+- 第二条
+
+![正文图片](https://picsum.photos/seed/article-md/800/420)
+```
+
+兼容 YAML 文章示例（`articles/a1.yml`）：
 
 ```yml
 article:
@@ -113,7 +160,7 @@ profile:
 - **Remark (`aliases.contacts`)**: 对好友的备注名。在当前账号视角下，单聊/群聊中别人的发言、会话列表预览、聊天窗口标题都会优先显示备注名。
 - **Group Alias (`aliases.selfInGroups`)**: 在特定群聊中自己的显示名称（群名片）。
 - **Date-effective identity (`profile.identityTimeline`)**: 可按日期配置生效中的 `name/bio`。系统会选取“生效日期 <= 当前参考时间”的最新一条。
-- **System-time Naming**: 在会话总览页中，账号资料卡的参考时间为当前账号的**系统时间**。特别地，在“我”界面的账号切换列表中，每个账号卡片的名称都根据**该账号自身的系统时间**（即该账号当前持久化的阶段日期）解析，从而确保每个账号都以其当前的剧情身份呈现。
+- **Stage-time Naming**: 在会话总览页中，账号资料卡、单聊标题、会话列表名称的参考时间为当前账号的**阶段时间**。特别地，在“我”界面的账号切换列表中，每个账号卡片的名称都根据**该账号自身的阶段时间**（即该账号当前持久化的阶段小时）解析，从而确保每个账号都以其当前的剧情身份呈现。
 - 未配置别名时，回退到解析出的正式名称，最后回退到 `id`。
 
 ## 会话总览页模式说明
@@ -123,7 +170,7 @@ profile:
 - **路径解析规则**：
   - **单文件构建 (`npm run build`)**：Markdown 头部 frontmatter 中的 `profiles/chat/articles` 等相对路径，均相对于该 **Markdown 文件所在的目录** 解析。
   - **文件夹构建 (`npm run build:folder`)**：`profiles/` 目录、`profiles.yml`、`ui.yml`、`story.yml` 以及 `chatFiles` 和 `groupChats` 中指定的路径，均相对于传入的 **`inputDir` 目录** 解析。
-- 首屏是会话列表，预览按“未读当天首条 / 已读当天最后一条”动态更新。
+- 首屏是会话列表，预览按“未读当前小时首条 / 已读当前小时最后一条”动态更新。
 - 点击会话后会按消息内容自动估算阅读节奏逐条播放；文本越长，停留越久。播放中点击聊天记录区域可立即刷出下一条消息
 - 播放完成后显示小字：`当前聊天已结束`
 - 可点击“返回”继续看其他会话
@@ -146,7 +193,7 @@ profile:
 - `chatFiles`：该账号视角下要加载的聊天 markdown 文件（相对 `build-folder` 输入目录）
 - `groupChats`：仅群聊需要，指定某个 markdown 对应的群聊元信息 yml（只需 `title/groupInfo`）
 - `self` 不再写在群聊 yml 中，由当前 profile 的 id 隐含
-- 单聊无需 `chat.yml`，系统会从消息参与者自动推断会话对象与标题（优先联系人别名）
+- 单聊无需 `chat.yml`，系统会从消息参与者自动推断会话对象与标题；标题必须来自当前账号联系人备注、对方显式 `profile.name` 或按当前阶段时间解析出的 `identityTimeline.name`，不会回退到 profile id / 文件名
 
 ### 账号推进与切换 (story.yml)
 
@@ -158,12 +205,13 @@ story:
 ```
 
 - `accountOrder`：账号（即 `profiles/*.yml` 的文件名 id）的解锁顺序。
-- 解锁规则：当当前账号的时间轴已到最后一天，且“微信/文章/发现”的红点全部清零后，会解锁下一个账号并在“我”上打红点提示；进入“我”可看到已解锁账号列表并随时切换。
-- **系统时间** 与已读状态按账号隔离（同一个 `persistKey` 下记录多个账号的进度）。
+- 解锁规则：当当前账号的时间轴已到最后一个小时，且“微信/文章/发现”的红点全部清零后，会解锁下一个账号并显示顶部轻提示，同时在“我”上打红点提示；进入“我”可看到已解锁账号列表并随时切换。
+- 解锁提示中的账号名称使用该账号 `identityTimeline` 的第一个 `name`；没有 timeline 名称时回退到显式 `profile.name`，最后回退到账号 id。
+- **阶段时间** 与已读状态按账号隔离（同一个 `persistKey` 下记录多个账号的进度）。
 
 补充说明：
 - `story.yml` 不是第三种独立渲染模式，而是**会话总览页**里的账号推进配置。
-- 顶部状态栏正中的时间建议统一称为 **系统时间**。它不是物理世界时间，而是页面内部随着推进变化的时间。
+- 顶部状态栏正中的时间建议统一称为 **阶段时间**。它不是操作系统时间或物理世界时间，而是页面内部随着推进变化的剧情阶段时间。
 
 示例：`examples/showcase/story.yml`
 
@@ -186,11 +234,13 @@ ui:
     battery: "31%"
   topTitle: "微信"
   persistKey: "room_wechat_seen_v1"
+  debug: false
 ```
 
 - `carrier/time/battery`：顶部状态栏文案
 - `topTitle`：顶部标题（如“微信”）
 - `persistKey`：浏览器本地记忆键名（用于“已播放会话直接完整展示”）
+- `debug`：是否输出 `[chat-debug]` 运行时日志，默认 `false`
 
 ## 文档导航
 

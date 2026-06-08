@@ -15,5 +15,9 @@
     "req:gen": "bash scripts/generate-requirement-doc.sh",
     "req:check": "bash scripts/check-doc-sync.sh",
     "hooks:install": "bash scripts/install-hooks.sh"
+  },
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "markdown-it": "^14.2.0"
   }
 }

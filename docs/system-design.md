@@ -7,7 +7,7 @@
 - **单会话页 (Single Conversation Page)** 渲染
 - **会话总览页 (Conversation Hub)** 聚合
 - **剧情页 (Story Page)** 多场景串联
-- **账号推进 (Account Progression)** 与 **系统时间 (System Time)** 驱动的互动体验
+- **账号推进 (Account Progression)** 与 **阶段时间 (Stage Time)** 驱动的互动体验
 - 多账号解锁与快速切换（story.yml）
 - 图片、链接卡片、引用消息、语音、撤回
 - 回放式展示（按消息内容自动估算节奏逐条出现）
@@ -17,16 +17,16 @@
 
 ## 2. 核心概念设计
 
-### 2.1 系统时间 (System Time)
+### 2.1 阶段时间 (Stage Time)
 
-在会话总览页模式下，系统时间（顶栏中心）不再是静态配置，而是由当前账号的阶段驱动：
+在会话总览页模式下，阶段时间（顶栏中心）不再是静态配置，也不是操作系统时间，而是由当前账号的阶段驱动：
 - **来源**: 消息列表中的日期分布。
 - **推进**: 用户完成当前阶段的所有互动后，系统自动推移到下一日期。
-- **隔离**: 系统时间进度按账号独立存储。
+- **隔离**: 阶段时间进度按账号独立存储。
 - **初始值**: 初次渲染时可先显示 `ui.yml` 中的 `statusBar.time`，进入运行态后再切换到当前阶段日期。
 - **身份解析**: 
-  - 用户的 `name` 和 `bio` 优先从 `identityTimeline` 根据当前账号的系统时间解析。
-  - 在账号切换列表中，每个账号卡片独立使用其自身的系统时间来解析显示的身份名称。
+  - 用户的 `name` 和 `bio` 优先从 `identityTimeline` 根据当前账号的阶段时间解析。
+  - 在账号切换列表中，每个账号卡片独立使用其自身的阶段时间来解析显示的身份名称。
 
 ### 2.2 账号推进 (Account Progression)
 
@@ -69,7 +69,7 @@
 - 回放结束：显示“当前聊天已结束”
 - 再次进入：若会话已完整播放过，直接全量展示
 - 本地记忆：基于 `localStorage` 的 `persistKey`
-- **系统时间驱动**: 详情页与总览页共用阶段时间。
+- **阶段时间驱动**: 详情页与总览页共用阶段时间。
 - **账号隔离**: 每个账号拥有独立的已读状态与进度。
 
 ### 3.4 剧情页交互能力
@@ -154,7 +154,7 @@
 - 渲染会话总览页聚合页
 - 包含会话列表、详情回放、朋友圈、文章列表
 - 实现 **剧情页 (Story Page)** 多场景串联
-- 实现 **账号推进** 与 **系统时间** 的前端逻辑
+- 实现 **账号推进** 与 **阶段时间** 的前端逻辑
 - 实现 **HeartbeatEngine**（Web Audio API 心跳合成器），支持自动播放时节奏切换
 - 本地持久化已播放状态
 
@@ -182,7 +182,7 @@
 4. 读取同目录 `story.yml`（可选）
 5. `buildConversationModels` 生成列表视图模型
 6. `renderWechatHubHtml` 生成聚合页面
-7. 浏览器端 JS 执行回放、系统时间推移、账号切换逻辑
+7. 浏览器端 JS 执行回放、阶段时间推移、账号切换逻辑
 
 ### 5.3 剧情页渲染流程
 
@@ -238,7 +238,7 @@ open wechat-hub.html
   -> render conversation list
   -> if account fully completed then unlock next account in "我" tab
   -> click list item
-      -> openConversation (updates System Time display)
+      -> openConversation (updates Stage Time display)
       -> if seenMap[id] then full render
       -> else content-paced replay + end tip
       -> mark seen in localStorage & check for progression
