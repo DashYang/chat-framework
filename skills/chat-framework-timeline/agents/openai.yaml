@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chat Framework Timeline"
+  short_description: "Summarize chat-framework stories by day"
+  default_prompt: "Use $chat-framework-timeline to summarize these chat-framework conversations into a day-level timeline."

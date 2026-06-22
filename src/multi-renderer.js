@@ -554,11 +554,13 @@ export function renderWechatHubHtml(input) {
     .avatar-btn { border:none; padding:0; background:transparent; cursor:pointer; width:42px; height:42px; border-radius:8px; }
     .avatar { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; background: #ddd; }
     .msg-main { width: fit-content; max-width: 80%; }
+    .msg.card-msg .msg-main { width: 80%; max-width: 80%; }
     .msg.self .msg-main { margin-left: auto; }
     .msg.self .msg-body { display: flex; justify-content: flex-end; }
     .meta { font-size: 12px; color: var(--muted); margin: 0 0 4px; }
     .msg.self .meta { text-align: right; }
     .bubble { display: inline-block; max-width: 100%; border-radius: 10px; padding: 10px 12px; background: var(--incoming); word-break: break-word; line-height: 1.45; white-space: pre-wrap; }
+    .msg.card-msg .bubble { width: 100%; white-space: normal; }
     .msg.self .bubble { background: var(--outgoing); text-align: left; }
     .bubble.media { padding: 4px; background: transparent; }
     .recall-tip { font-size:12px; color:var(--muted); text-align:center; padding:4px 0; }
@@ -569,16 +571,17 @@ export function renderWechatHubHtml(input) {
     .voice-icon { font-size:12px; color:#3b3b3b; }
     .voice-duration { font-size:13px; color:#3b3b3b; min-width:26px; text-align:left; }
     .voice-btn.playing .voice-icon { color:#07c160; }
-    .card { display: block; border-radius: 8px; background: #f8f8f8; padding: 9px; text-decoration: none; color: inherit; }
-    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .card-desc { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .card { display: block; width:100%; box-sizing:border-box; border-radius: 8px; background: #f8f8f8; padding: 9px; text-decoration: none; color: inherit; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .card-desc { font-size: 12px; color: var(--muted); margin-bottom: 8px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .card-footer { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
-    .article-card { border:none; display:block; width:100%; text-align:left; cursor:pointer; border-radius:8px; background:#f8f8f8; padding:9px; }
-    .article-title { font-size:14px; font-weight:600; line-height:1.4; }
+    .card-footer span { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+    .article-card { border:none; display:block; width:100%; box-sizing:border-box; text-align:left; cursor:pointer; border-radius:8px; background:#f8f8f8; padding:9px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .article-title { font-size:14px; font-weight:600; line-height:1.4; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
-    .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { width:min(220px,100%); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .contact-card { width:100%; box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
     .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
@@ -907,15 +910,50 @@ export function renderWechatHubHtml(input) {
       return firstIdentityTimelineName(user) || user.name || user.id || accountId || '';
     }
 
-    function showUnlockToast(accountId) {
+    function showTopToast(text) {
       if (!unlockToast) return;
-      const name = unlockedAccountName(accountId);
-      unlockToast.textContent = '已解锁新账号：' + name;
+      unlockToast.textContent = text;
       unlockToast.classList.add('show');
       clearTimeout(unlockToastTimer);
       unlockToastTimer = setTimeout(() => {
         unlockToast.classList.remove('show');
       }, 3600);
+    }
+
+    function showUnlockToast(accountId) {
+      const name = unlockedAccountName(accountId);
+      showTopToast('已解锁新账号：' + name);
+    }
+
+    function completeMonthDiff(prev, next) {
+      if (!(prev instanceof Date) || !(next instanceof Date)) return 0;
+      if (Number.isNaN(prev.getTime()) || Number.isNaN(next.getTime()) || next <= prev) return 0;
+      let months = (next.getFullYear() - prev.getFullYear()) * 12 + (next.getMonth() - prev.getMonth());
+      if (months <= 0) return 0;
+      const nextBeforeAnchorDay = next.getDate() < prev.getDate();
+      const nextOnAnchorDayBeforeTime = next.getDate() === prev.getDate()
+        && (
+          next.getHours() < prev.getHours()
+          || (next.getHours() === prev.getHours() && next.getMinutes() < prev.getMinutes())
+          || (next.getHours() === prev.getHours() && next.getMinutes() === prev.getMinutes() && next.getSeconds() < prev.getSeconds())
+        );
+      if (nextBeforeAnchorDay || nextOnAnchorDayBeforeTime) months -= 1;
+      return Math.max(0, months);
+    }
+
+    function stageGapText(prevStageKey, nextStageKey) {
+      const prevMs = parseIdentityReference(prevStageKey);
+      const nextMs = parseIdentityReference(nextStageKey);
+      if (prevMs === null || nextMs === null || nextMs <= prevMs) return "";
+      const months = completeMonthDiff(new Date(prevMs), new Date(nextMs));
+      if (months >= 12) return '过 ' + Math.floor(months / 12) + ' 年后';
+      if (months >= 1) return '过 ' + months + ' 月后';
+      return "";
+    }
+
+    function showStageGapToast(prevStageKey, nextStageKey) {
+      const text = stageGapText(prevStageKey, nextStageKey);
+      if (text) showTopToast(text);
     }
 
     function currentRuntimeTime() {
@@ -1717,7 +1755,9 @@ export function renderWechatHubHtml(input) {
           const momentsDone = unreadMomentsCount(curMs) === 0;
           const articlesDone = unreadArticlesCount(curMs) === 0;
           if (allChatDone && momentsDone && articlesDone) {
+            const prevStageKey = currentStageMs();
             stageIndex += 1;
+            const nextStageKey = currentStageMs();
             persistStageIndexForAccount();
             saveSeen();
             setStageStatusTime();
@@ -1727,6 +1767,7 @@ export function renderWechatHubHtml(input) {
               observeRenderedMoments();
             }
             if (contactsView.style.display === 'flex') renderContacts();
+            showStageGapToast(prevStageKey, nextStageKey);
           }
         }
       }
@@ -2037,7 +2078,8 @@ ${imageViewerRuntimeSource()}
       const resolvedProfile = resolveEffectiveProfile(user, currentStageMs());
       const self = activeAccountId || conv.self;
       const displayName = resolveDisplayName(conv, msg.senderId);
-      const selfCls = msg.senderId === self ? 'msg self' : 'msg';
+      const isCardMessage = msg.kind === 'link-card' || msg.kind === 'article-card' || msg.kind === 'contact-card';
+      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '');
       const avatarUrl = resolvedProfile.avatar || user.avatar || '';
         const avatar = '<button class="avatar-btn" type="button"'
          + ' data-name="' + esc(resolvedProfile.name || msg.senderId) + '"'
@@ -2482,9 +2524,10 @@ export function renderWechatStoryHtml(input) {
     .msg.self { grid-template-columns:1fr 42px; }
     .avatar-btn { border:none; padding:0; background:transparent; cursor:pointer; width:42px; height:42px; border-radius:8px; }
     .avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
-    .msg-main { width:fit-content; max-width:80%; } .msg.self .msg-main { margin-left:auto; } .msg.self .msg-body { display:flex; justify-content:flex-end; }
+    .msg-main { width:fit-content; max-width:80%; } .msg.card-msg .msg-main { width:80%; max-width:80%; } .msg.self .msg-main { margin-left:auto; } .msg.self .msg-body { display:flex; justify-content:flex-end; }
     .meta { font-size:12px; color:var(--muted); margin:0 0 4px; } .msg.self .meta { text-align:right; }
     .bubble { display:inline-block; max-width:100%; border-radius:10px; padding:10px 12px; background:var(--incoming); word-break:break-word; line-height:1.45; white-space:pre-wrap; }
+    .msg.card-msg .bubble { width:100%; white-space:normal; }
     .msg.self .bubble { background:var(--outgoing); text-align:left; }
     .bubble.media { padding:4px; background:transparent; }
     .recall-tip { font-size:12px; color:var(--muted); text-align:center; padding:4px 0; }
@@ -2495,16 +2538,17 @@ export function renderWechatStoryHtml(input) {
     .voice-icon { font-size:12px; color:#3b3b3b; }
     .voice-duration { font-size:13px; color:#3b3b3b; min-width:26px; text-align:left; }
     .voice-btn.playing .voice-icon { color:#07c160; }
-    .card { display:block; border-radius:8px; background:#f8f8f8; padding:9px; text-decoration:none; color:inherit; }
-    .card-title { font-size:14px; font-weight:600; margin-bottom:4px; }
-    .card-desc { font-size:12px; color:var(--muted); margin-bottom:8px; }
+    .card { display:block; width:100%; box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:9px; text-decoration:none; color:inherit; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .card-title { font-size:14px; font-weight:600; margin-bottom:4px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .card-desc { font-size:12px; color:var(--muted); margin-bottom:8px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .card-footer { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
-    .article-card { border:none; display:block; width:100%; text-align:left; cursor:pointer; border-radius:8px; background:#f8f8f8; padding:9px; }
-    .article-title { font-size:14px; font-weight:600; line-height:1.4; }
+    .card-footer span { min-width:0; overflow-wrap:anywhere; word-break:break-word; }
+    .article-card { border:none; display:block; width:100%; box-sizing:border-box; text-align:left; cursor:pointer; border-radius:8px; background:#f8f8f8; padding:9px; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .article-title { font-size:14px; font-weight:600; line-height:1.4; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .article-meta { margin-top:4px; font-size:11px; color:var(--muted); }
     .article-cover { width:100%; margin-top:8px; border-radius:6px; max-height:150px; object-fit:cover; background:#ddd; }
-    .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; }
-    .contact-card { width:min(220px,100%); box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; }
+    .article-summary { margin-top:7px; font-size:12px; color:#4c4c4c; line-height:1.45; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
+    .contact-card { width:100%; box-sizing:border-box; border-radius:8px; background:#f8f8f8; padding:10px; display:flex; gap:9px; align-items:center; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
     .contact-card > div { min-width:0; flex:1; }
     .contact-avatar { width:42px; height:42px; border-radius:8px; object-fit:cover; background:#ddd; }
     .contact-name { font-size:14px; font-weight:600; word-break:break-word; }
@@ -3054,7 +3098,8 @@ ${imageViewerRuntimeSource()}
       const resolvedProfile = resolveEffectiveProfile(user, msg.timestamp || msg.timeText || '');
       const self = conv.self;
       const displayName = resolveStoryDisplayName(conv, msg.senderId);
-      const selfCls = msg.senderId === self ? 'msg self' : 'msg';
+      const isCardMessage = msg.kind === 'link-card' || msg.kind === 'article-card' || msg.kind === 'contact-card';
+      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '');
         const avatar = '<button class="avatar-btn" type="button"'
          + ' data-name="' + esc(resolvedProfile.name || msg.senderId) + '"'
          + ' data-display-name="' + esc(displayName || user.nickName || resolvedProfile.name || msg.senderId || '') + '"'

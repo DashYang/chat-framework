@@ -371,7 +371,8 @@ function renderMessage(m, ctx) {
   const u = ctx.profiles.users[m.senderId] || { name: m.senderId, avatar: "" };
   const selfId = ctx.chat.self;
   const displayName = resolveDisplayName(m.senderId, ctx, m.senderId === selfId);
-  const cls = m.senderId === selfId ? "msg self" : "msg";
+  const isCardMessage = m.kind === "link-card" || m.kind === "article-card" || m.kind === "contact-card";
+  const cls = (m.senderId === selfId ? "msg self" : "msg") + (isCardMessage ? " card-msg" : "");
   const avatar = `<button class="avatar-btn" type="button"
       data-user-id="${escapeHtml(m.senderId)}"
       data-display-name="${escapeHtml(displayName || u.nickName || u.name || m.senderId)}"
