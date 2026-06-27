@@ -313,6 +313,7 @@ profiles: "./profiles"
 `profiles/alice.yml`:
 ```yml
 profile:
+  version: 1
   name: "Alice"
   avatar: "https://example.com/a.jpg"
   bio: "产品经理"
@@ -330,6 +331,8 @@ profile:
 ```
 
 说明：
+- `version` 可选；当该账号内容更新并希望读者重新消费时递增。提升版本后，该账号聊天、文档、朋友圈阅读进度和阶段进度会重新开始，账号解锁状态不受影响
+- 未配置 `version` 时沿用旧存储 key，旧项目不会被动丢失进度
 - 朋友圈只支持文字和图片
 - `publishAt` 所在小时晚于当前阶段小时（由账号推进驱动）时不会显示
 - `author` 为可选字段；未填写时默认使用所属 profile 的当前生效 `name/avatar`
@@ -421,6 +424,7 @@ chat:
 
 ```yml
 profile:
+  version: 1
   chatFiles: ["01-group.md", "02-single.md"]
   groupChats:
     "01-group.md": "group.yml"

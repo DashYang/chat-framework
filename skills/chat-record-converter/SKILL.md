@@ -267,6 +267,7 @@ ui:
 
 ```yml
 profile:
+  version: 1
   name: "<账号显示名>"
   avatar: "<头像URL>"
   chatFiles: ["01-group.md", "02-single.md"]
@@ -332,6 +333,7 @@ story:
 - 朋友圈 `publishAt`、文章 `publishAt` 可按阶段时间过滤
 - `build:folder` 的 build report 中，每个账号的 `聊天 / 文档 / 社交 / 总计` 文字数应能反映创作规模；明显异常为 0 时需检查 `chatFiles`、`officialArticles` 或 `moments`
 - 新账号解锁提示使用账号 `identityTimeline` 的第一个 `name`；如果希望提示显示某个旧身份，应把它放在 timeline 的最早生效项
+- 如果修改了已发布账号的聊天、文档或朋友圈，并希望读者重新消费该账号内容，递增该账号的 `profile.version`；普通新增草稿或不希望重置进度时不要改版本
 - `ui.debug` 默认 `false`；只有用户明确要求调试日志时才设为 `true`
 - 增量导入时，新可切换账号默认追加到 `story.accountOrder` 末尾；普通联系人不加入 `accountOrder`
 

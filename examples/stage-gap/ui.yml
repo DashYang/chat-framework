@@ -1,0 +1,8 @@
+ui:
+  statusBar:
+    carrier: "中国移动"
+    time: "22:00"
+    battery: "0%"
+  topTitle: "阶段跨度"
+  theme: "wechat"
+  persistKey: "stage_gap_seen_v1"

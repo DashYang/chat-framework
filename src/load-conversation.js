@@ -165,9 +165,13 @@ function normalizeUserProfile(id, parsed) {
   const defaultView = ["chat", "doc", "social"].includes(profile.defaultView)
     ? profile.defaultView
     : "chat";
+  const version = profile.version === undefined || profile.version === null
+    ? ""
+    : String(profile.version).trim();
   const out = {
     name: explicitName || id,
     id,
+    version,
     avatar: profile.avatar || "",
     bio: profile.bio || "",
     nickName: profile.nickName || profile.name || id,

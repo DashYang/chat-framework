@@ -1,0 +1,9 @@
+users:
+  alice:
+    name: "林夏"
+    avatar: "https://picsum.photos/seed/stage-gap-alice/100/100"
+    bio: "阶段时间跨度示例账号"
+  bob:
+    name: "陈序"
+    avatar: "https://picsum.photos/seed/stage-gap-bob/100/100"
+    bio: "用于推动阶段跨度的对话对象"

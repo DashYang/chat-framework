@@ -8,6 +8,14 @@
 - **会话总览页 (Conversation Hub)**: 聚合多会话、朋友圈、文章列表。支持 **账号推进 (Account Progression)** 与 **阶段时间 (Stage Time)** 驱动的沉浸式互动体验。
 - **阶段时间 (Stage Time)**: 位于总览页顶部的状态栏中心时间。它不是操作系统时间或现实时钟，而是页面内部的剧情阶段时间；在运行过程中会随当前账号的阶段推进而更新。
 
+## License
+
+本项目采用 **PolyForm Noncommercial License 1.0.0 + 商业授权**。
+
+- 非商业使用：遵循 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)。
+- 商业使用：需要获得单独的书面商业授权。
+- 详细条款见 [LICENSE.md](LICENSE.md)。
+
 ## 运行
 
 ```bash
@@ -16,6 +24,7 @@ npm run build           # 生成单会话页 (dist/index.html)
 npm run build:paper     # 生成单会话页 (paper 主题)
 npm run build:folder    # 生成会话总览页 (dist/wechat-hub.html)
 npm run build:showcase  # 生成全功能预览基线
+npm run build:stage-gap # 生成阶段时间跨度提示示例
 npm run hooks:install
 ```
 
@@ -24,6 +33,7 @@ npm run hooks:install
 - `dist/paper.html`（单会话页，paper）
 - `dist/wechat-hub.html`（会话总览页）
 - `dist/showcase-wechat-hub.html`（全功能预览基线）
+- `dist/stage-gap.html`（阶段时间跨度提示示例）
 
 ## 命令行安装
 
@@ -139,6 +149,7 @@ article:
 
 ```yml
 profile:
+  version: 1 # 内容更新并希望读者重新消费该账号内容时递增
   # name: "奋斗的西瓜" # 与 identityTimeline 互斥，不建议混合使用
   aliases:
     selfInGroups:
@@ -158,6 +169,7 @@ profile:
 - **Naming Source Exclusivity**: 账号身份名称必须从 `profile.name` 或 `profile.identityTimeline` 中**择一使用**。若配置了非空的 `identityTimeline`，则必须删除顶层的 `profile.name`。
 - **Canonical Nickname**: 账号的正式名称。系统会根据当前参考时间从 `name` 或 `identityTimeline` 中解析。它显示在点击头像弹出的资料卡标题中。
 - **Remark (`aliases.contacts`)**: 对好友的备注名。在当前账号视角下，单聊/群聊中别人的发言、会话列表预览、聊天窗口标题都会优先显示备注名。
+- **Profile Version**: `profile.version` 是可选的账号内容版本。提升版本号后，该账号的聊天、文档、朋友圈阅读进度会重新开始；账号是否已解锁不会因此重置。未配置版本时沿用旧进度。
 - **Group Alias (`aliases.selfInGroups`)**: 在特定群聊中自己的显示名称（群名片）。
 - **Date-effective identity (`profile.identityTimeline`)**: 可按日期配置生效中的 `name/bio`。系统会选取“生效日期 <= 当前参考时间”的最新一条。
 - **Stage-time Naming**: 在会话总览页中，账号资料卡、单聊标题、会话列表名称的参考时间为当前账号的**阶段时间**。特别地，在“我”界面的账号切换列表中，每个账号卡片的名称都根据**该账号自身的阶段时间**（即该账号当前持久化的阶段小时）解析，从而确保每个账号都以其当前的剧情身份呈现。
@@ -185,6 +197,7 @@ profile:
 
 ```yml
 profile:
+  version: 1
   chatFiles: ["01-group.md", "02-single.md"]
   groupChats:
     "01-group.md": "group.yml"
@@ -222,6 +235,12 @@ story:
 - 产物：`dist/showcase-wechat-hub.html`
 - 目标：集中覆盖当前所有核心功能（聊天、引用、图文、语音、撤回、头像资料卡、朋友圈）
 - 约定：后续每新增一个功能，必须同步补充 `examples/showcase` 示例数据，保证可直接预览与回归
+
+### 阶段时间跨度提示示例
+
+- 目录：`examples/stage-gap/`
+- 产物：`dist/stage-gap.html`
+- 目标：覆盖同账号阶段推进中的 `过 N 月后` / `过 N 年后` 顶部轻提示，不混入 showcase 主线剧情
 
 ### 主界面文案配置（ui.yml）
 

@@ -2,6 +2,7 @@
   "name": "chat-framework",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "bin": {
     "chat-framework": "src/cli.js"
@@ -12,6 +13,7 @@
     "build:iterms": "node src/build.js examples/chat-iterms.md dist/iterms.html",
     "build:folder": "node src/build-folder.js examples/multi dist/wechat-hub.html",
     "build:showcase": "node src/build-folder.js examples/showcase dist/showcase-wechat-hub.html",
+    "build:stage-gap": "node src/build-folder.js examples/stage-gap dist/stage-gap.html",
     "req:gen": "bash scripts/generate-requirement-doc.sh",
     "req:check": "bash scripts/check-doc-sync.sh",
     "hooks:install": "bash scripts/install-hooks.sh"

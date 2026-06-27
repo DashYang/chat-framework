@@ -34,15 +34,44 @@ export const articlePageCss = `
 
 export const imageViewerCss = `
 img[data-preview-src]{cursor:zoom-in}
+.image-load-shell{position:relative;display:inline-grid;max-width:100%;vertical-align:top;overflow:hidden;background:var(--image-load-bg,#e7e7e7);isolation:isolate}
+.image-load-shell.image-load-wide{display:grid;width:100%;min-height:96px}
+.image-load-shell.image-load-content{width:320px;max-width:100%;min-height:120px}
+.image-load-shell.image-load-small{width:var(--image-load-width,42px);height:var(--image-load-height,42px);min-width:var(--image-load-width,42px);min-height:var(--image-load-height,42px)}
+.image-load-shell>img{grid-area:1/1;position:relative;z-index:1;opacity:0;transition:opacity .18s ease}
+.image-load-shell.image-load-ready>img{opacity:1}
+.image-load-feedback{grid-area:1/1;position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-width:0;min-height:42px;padding:8px;color:var(--image-load-text,#777);font-size:12px;line-height:1.35;text-align:center;background:var(--image-load-bg,#e7e7e7)}
+.image-load-spinner{width:22px;height:22px;border:2px solid var(--image-load-track,rgba(0,0,0,.14));border-top-color:var(--image-load-accent,#07c160);border-radius:50%;animation:image-load-spin .8s linear infinite}
+.image-load-error{display:none;align-items:center;justify-content:center;gap:6px;width:100%;height:100%;cursor:pointer;user-select:none;overflow-wrap:anywhere}
+.image-load-error-icon{font-size:16px;line-height:1}
+.image-load-shell.image-load-failed .image-load-spinner{display:none}
+.image-load-shell.image-load-failed .image-load-error{display:flex}
+.image-load-shell.image-load-small .image-load-feedback{min-height:0;padding:0}
+.image-load-shell.image-load-small .image-load-spinner{width:16px;height:16px;border-width:2px}
+.image-load-shell.image-load-small .image-load-error-text{display:none}
+.image-load-shell.image-load-small .image-load-error-icon{font-size:14px}
+.image-load-shell.image-load-ready .image-load-feedback{display:none}
+@keyframes image-load-spin{to{transform:rotate(360deg)}}
+[data-theme="paper"] .image-load-shell,body:not([data-theme]) .image-load-shell{--image-load-bg:#f4eadb;--image-load-track:rgba(107,88,66,.2);--image-load-accent:#7c6348;--image-load-text:#6b5842}
+[data-theme="iterms"] .image-load-shell{--image-load-bg:#07100a;--image-load-track:#173020;--image-load-accent:#00ff41;--image-load-text:#7CFF8F;box-shadow:inset 0 0 0 1px #173020}
+[data-theme="iterms"] .image-load-spinner{filter:drop-shadow(0 0 3px rgba(0,255,65,.45))}
 .image-viewer{position:fixed;inset:0;z-index:220;display:none;background:rgba(0,0,0,.88);touch-action:none;overflow:hidden}
 .image-viewer.show{display:block}
 .image-viewer-stage{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none}
 .image-viewer-stage.dragging{cursor:grabbing}
-.image-viewer-img{position:absolute;top:50%;left:50%;max-width:none;max-height:none;user-select:none;-webkit-user-drag:none;transform-origin:center center;will-change:transform}
+.image-viewer-img{position:absolute;top:50%;left:50%;max-width:none;max-height:none;user-select:none;-webkit-user-drag:none;transform-origin:center center;will-change:transform;opacity:0;transition:opacity .18s ease}
+.image-viewer.viewer-ready .image-viewer-img{opacity:1}
+.image-viewer-feedback{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;color:#fff;pointer-events:none}
+.image-viewer-feedback .image-load-spinner{width:30px;height:30px;border-color:rgba(255,255,255,.2);border-top-color:#fff}
+.image-viewer-feedback .image-load-error{width:auto;height:auto;min-width:150px;min-height:72px;padding:12px 16px;border:1px solid rgba(255,255,255,.24);border-radius:6px;background:rgba(20,20,20,.78);pointer-events:auto}
+.image-viewer.viewer-ready .image-viewer-feedback{display:none}
+.image-viewer.viewer-failed .image-load-spinner{display:none}
+.image-viewer.viewer-failed .image-load-error{display:flex}
 .image-viewer-close{position:absolute;top:14px;right:14px;z-index:2;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(20,20,20,.72);color:#fff;width:38px;height:38px;font-size:20px;line-height:1;cursor:pointer}
 .image-viewer-status{position:absolute;left:14px;bottom:14px;z-index:2;border-radius:999px;background:rgba(20,20,20,.72);color:#fff;font-size:12px;padding:6px 10px;pointer-events:none}
 [data-theme="iterms"] .image-viewer{background:rgba(0,8,5,.92)}
 [data-theme="iterms"] .image-viewer-close,[data-theme="iterms"] .image-viewer-status{background:#0d1a12;border:1px solid #173020;color:#7CFF8F}
+[data-theme="iterms"] .image-viewer-feedback .image-load-error{background:#0d1a12;border-color:#173020;color:#7CFF8F}
 `;
 
 export function articleMarkdownRuntimeSource() {
@@ -154,6 +183,162 @@ export function articleMarkdownRuntimeSource() {
 
 export function imageViewerRuntimeSource() {
   return `
+      function installImageLoading() {
+        const managed = new WeakSet();
+        const smallImageClasses = new Set(['avatar', 'profile-avatar', 'contact-avatar', 'moment-avatar', 'list-avatar', 'account-avatar']);
+        const wideImageClasses = new Set(['article-cover', 'article-page-cover', 'oa-cover', 'previewable-image']);
+
+        function imageKind(image) {
+          for (const name of smallImageClasses) {
+            if (image.classList.contains(name)) return 'small';
+          }
+          for (const name of wideImageClasses) {
+            if (image.classList.contains(name)) return 'wide';
+          }
+          if (image.closest('.moment-images, .article-page-images, .article-page-text')) return 'wide';
+          return 'content';
+        }
+        function feedbackMarkup() {
+          const feedback = document.createElement('span');
+          feedback.className = 'image-load-feedback';
+          feedback.setAttribute('aria-live', 'polite');
+          feedback.innerHTML = '<span class="image-load-spinner" aria-label="图片加载中"></span>'
+            + '<span class="image-load-error" role="button" tabindex="0" aria-label="重新加载图片">'
+            + '<span class="image-load-error-icon" aria-hidden="true">▧</span>'
+            + '<span class="image-load-error-text">图片加载失败，点击重试</span></span>';
+          return feedback;
+        }
+        function ensureShell(image) {
+          const current = image.parentElement;
+          if (current && current.classList.contains('image-load-shell')) return current;
+          const kind = imageKind(image);
+          const rect = image.getBoundingClientRect();
+          const shell = document.createElement('span');
+          shell.className = 'image-load-shell image-load-' + kind;
+          if (kind === 'small') {
+            shell.style.setProperty('--image-load-width', Math.max(1, Math.round(rect.width || image.width || 42)) + 'px');
+            shell.style.setProperty('--image-load-height', Math.max(1, Math.round(rect.height || image.height || 42)) + 'px');
+            shell.style.borderRadius = getComputedStyle(image).borderRadius || '0';
+          } else if (kind === 'content' && rect.width >= 80) {
+            shell.style.width = Math.round(rect.width) + 'px';
+            if (rect.height > 0) shell.style.minHeight = Math.round(rect.height) + 'px';
+          }
+          image.parentNode.insertBefore(shell, image);
+          shell.appendChild(image);
+          shell.appendChild(feedbackMarkup());
+          return shell;
+        }
+        function clearShell(image) {
+          const shell = image.parentElement;
+          if (!shell || !shell.classList.contains('image-load-shell')) return;
+          shell.parentNode.insertBefore(image, shell);
+          shell.remove();
+          image.removeAttribute('aria-busy');
+          delete image.dataset.imageLoadSrc;
+        }
+        function unwrapReadyImage(image, shell) {
+          window.setTimeout(() => {
+            if (!shell.isConnected || image.parentElement !== shell || !shell.classList.contains('image-load-ready')) return;
+            shell.parentNode.insertBefore(image, shell);
+            shell.remove();
+          }, 190);
+        }
+        function markLoading(image) {
+          const src = image.getAttribute('src') || '';
+          if (!src) return;
+          image.dataset.imageLoadSrc = src;
+          const shell = ensureShell(image);
+          shell.classList.remove('image-load-ready', 'image-load-failed');
+          shell.classList.add('image-load-loading');
+          image.setAttribute('aria-busy', 'true');
+        }
+        function markReady(image) {
+          const shell = image.parentElement;
+          image.setAttribute('aria-busy', 'false');
+          if (!shell || !shell.classList.contains('image-load-shell')) {
+            image.style.opacity = '';
+            return;
+          }
+          shell.classList.remove('image-load-loading', 'image-load-failed');
+          shell.classList.add('image-load-ready');
+          unwrapReadyImage(image, shell);
+        }
+        function markFailed(image) {
+          const shell = ensureShell(image);
+          shell.classList.remove('image-load-loading', 'image-load-ready');
+          shell.classList.add('image-load-failed');
+          image.setAttribute('aria-busy', 'false');
+        }
+        function retryImage(image) {
+          const src = image.dataset.imageLoadSrc || image.getAttribute('src') || '';
+          if (!src) return;
+          markLoading(image);
+          image.dataset.imageLoadRetry = 'true';
+          image.removeAttribute('src');
+          requestAnimationFrame(() => {
+            image.setAttribute('src', src);
+            delete image.dataset.imageLoadRetry;
+          });
+        }
+        function inspectImage(image) {
+          if (!(image instanceof HTMLImageElement) || image.classList.contains('image-viewer-img')) return;
+          const src = image.getAttribute('src') || '';
+          if (!src) {
+            if (!image.dataset.imageLoadRetry) clearShell(image);
+            return;
+          }
+          if (!managed.has(image)) {
+            managed.add(image);
+            image.addEventListener('load', () => markReady(image));
+            image.addEventListener('error', () => markFailed(image));
+          }
+          if (!image.dataset.imageLoadRetry) image.dataset.imageLoadSrc = src;
+          if (image.complete) {
+            if (image.naturalWidth > 0) markReady(image);
+            else markFailed(image);
+          } else {
+            markLoading(image);
+          }
+        }
+        function inspectNode(node) {
+          if (!(node instanceof Element)) return;
+          if (node.matches('img[src]')) inspectImage(node);
+          node.querySelectorAll('img[src]').forEach(inspectImage);
+        }
+
+        document.querySelectorAll('img[src]').forEach(inspectImage);
+        document.addEventListener('click', (event) => {
+          const retry = event.target.closest && event.target.closest('.image-load-shell .image-load-error');
+          if (!retry) return;
+          const shell = retry.closest('.image-load-shell');
+          const image = shell && shell.querySelector('img');
+          if (!image) return;
+          event.preventDefault();
+          event.stopPropagation();
+          retryImage(image);
+        }, true);
+        document.addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          const retry = event.target.closest && event.target.closest('.image-load-shell .image-load-error');
+          if (!retry) return;
+          const image = retry.closest('.image-load-shell')?.querySelector('img');
+          if (!image) return;
+          event.preventDefault();
+          event.stopPropagation();
+          retryImage(image);
+        }, true);
+        const observer = new MutationObserver((records) => {
+          records.forEach((record) => {
+            if (record.type === 'attributes') {
+              inspectImage(record.target);
+              return;
+            }
+            record.addedNodes.forEach(inspectNode);
+          });
+        });
+        observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+      }
+
       function installImageViewer() {
         const viewer = document.getElementById('image-viewer');
         const stage = document.getElementById('image-viewer-stage');
@@ -161,7 +346,16 @@ export function imageViewerRuntimeSource() {
         const closeBtn = document.getElementById('image-viewer-close');
         const status = document.getElementById('image-viewer-status');
         if (!viewer || !stage || !image || !closeBtn || !status) return;
+        installImageLoading();
+        const viewerFeedback = document.createElement('div');
+        viewerFeedback.className = 'image-viewer-feedback';
+        viewerFeedback.innerHTML = '<span class="image-load-spinner" aria-label="图片加载中"></span>'
+          + '<span class="image-load-error" role="button" tabindex="0" aria-label="重新加载原图">'
+          + '<span class="image-load-error-icon" aria-hidden="true">▧</span>'
+          + '<span class="image-load-error-text">图片加载失败，点击重试</span></span>';
+        stage.appendChild(viewerFeedback);
         const state = { scale: 1, x: 0, y: 0, naturalW: 1, naturalH: 1, fitScale: 1, pointers: new Map(), drag: null, pinch: null };
+        let viewerSrc = '';
         const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
         function updateStatus() {
           status.textContent = Math.round(state.scale * 100) + '%';
@@ -191,14 +385,23 @@ export function imageViewerRuntimeSource() {
         }
         function openImageViewer(src, alt) {
           if (!src) return;
+          viewerSrc = src;
           state.pointers.clear();
           state.drag = null;
           state.pinch = null;
+          viewer.classList.remove('viewer-ready', 'viewer-failed');
+          viewer.classList.add('viewer-loading');
           image.alt = alt || 'image';
           image.onload = () => {
             state.naturalW = image.naturalWidth || 1;
             state.naturalH = image.naturalHeight || 1;
             resetImagePosition();
+            viewer.classList.remove('viewer-loading', 'viewer-failed');
+            viewer.classList.add('viewer-ready');
+          };
+          image.onerror = () => {
+            viewer.classList.remove('viewer-loading', 'viewer-ready');
+            viewer.classList.add('viewer-failed');
           };
           image.src = src;
           viewer.classList.add('show');
@@ -207,10 +410,13 @@ export function imageViewerRuntimeSource() {
             state.naturalW = image.naturalWidth;
             state.naturalH = image.naturalHeight;
             resetImagePosition();
+            viewer.classList.remove('viewer-loading', 'viewer-failed');
+            viewer.classList.add('viewer-ready');
           }
         }
         function closeImageViewer() {
           viewer.classList.remove('show');
+          viewer.classList.remove('viewer-loading', 'viewer-ready', 'viewer-failed');
           viewer.setAttribute('aria-hidden', 'true');
           image.removeAttribute('src');
           state.pointers.clear();
@@ -231,6 +437,23 @@ export function imageViewerRuntimeSource() {
         closeBtn.addEventListener('click', closeImageViewer);
         viewer.addEventListener('click', (event) => {
           if (event.target === viewer || event.target === stage) closeImageViewer();
+        });
+        viewerFeedback.querySelector('.image-load-error').addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!viewerSrc) return;
+          viewer.classList.remove('viewer-ready', 'viewer-failed');
+          viewer.classList.add('viewer-loading');
+          image.removeAttribute('src');
+          requestAnimationFrame(() => {
+            image.src = viewerSrc;
+          });
+        });
+        viewerFeedback.querySelector('.image-load-error').addEventListener('keydown', (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          event.stopPropagation();
+          viewerFeedback.querySelector('.image-load-error').click();
         });
         window.addEventListener('keydown', (event) => {
           if (event.key === 'Escape' && viewer.classList.contains('show')) closeImageViewer();

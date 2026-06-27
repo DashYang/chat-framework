@@ -506,6 +506,16 @@ export function renderWechatHubHtml(input) {
     .account-reset { width:100%; border:none; background:#fff; border-radius:10px; padding:14px 12px; margin-top:10px; text-align:center; cursor:pointer; color:#d93025; font-size:16px; }
     .unlock-toast { position:absolute; left:14px; right:14px; top:34px; z-index:75; min-height:38px; padding:9px 12px; border-radius:8px; background:rgba(255,255,255,.96); color:#222; box-shadow:0 8px 24px rgba(0,0,0,.16); border:1px solid rgba(0,0,0,.08); display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1.35; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
     .unlock-toast.show { opacity:1; transform:translateY(0); }
+    .reset-confirm { position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center; padding:22px; background:rgba(0,0,0,.32); }
+    .reset-confirm.show { display:flex; }
+    .reset-confirm-card { width:min(320px,100%); border-radius:12px; background:#fff; box-shadow:0 18px 48px rgba(0,0,0,.22); overflow:hidden; }
+    .reset-confirm-body { padding:22px 20px 16px; text-align:center; }
+    .reset-confirm-title { margin:0 0 8px; color:#222; font-size:17px; font-weight:700; line-height:1.35; }
+    .reset-confirm-text { margin:0; color:#666; font-size:14px; line-height:1.55; }
+    .reset-confirm-actions { display:grid; grid-template-columns:1fr 1fr; border-top:1px solid var(--line); }
+    .reset-confirm-btn { border:none; background:#fff; padding:13px 8px; color:#222; font-size:16px; cursor:pointer; }
+    .reset-confirm-btn + .reset-confirm-btn { border-left:1px solid var(--line); }
+    .reset-confirm-danger { color:#d93025; font-weight:700; }
     .detail-view {
       display: none;
       flex-direction: column;
@@ -677,6 +687,14 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .account-reset { background:#0d1117; border:1px solid #142018; color:#ff3b30; }
     [data-theme="iterms"] .account-avatar { border-radius:2px; }
     [data-theme="iterms"] .unlock-toast { background:rgba(5,8,13,.96); color:var(--accent); border:1px solid var(--accent); box-shadow:0 0 14px rgba(0,255,65,.18); border-radius:2px; text-shadow:var(--glow); }
+    [data-theme="iterms"] .reset-confirm { background:rgba(0,0,0,.58); }
+    [data-theme="iterms"] .reset-confirm-card { background:#0d1117; border:1px solid var(--accent); border-radius:2px; box-shadow:0 0 18px rgba(0,255,65,.18); }
+    [data-theme="iterms"] .reset-confirm-title { color:var(--accent); text-shadow:var(--glow); }
+    [data-theme="iterms"] .reset-confirm-text { color:var(--muted); }
+    [data-theme="iterms"] .reset-confirm-actions { border-color:#14351f; }
+    [data-theme="iterms"] .reset-confirm-btn { background:#0d1117; color:var(--text); }
+    [data-theme="iterms"] .reset-confirm-btn + .reset-confirm-btn { border-color:#14351f; }
+    [data-theme="iterms"] .reset-confirm-danger { color:#ff5b52; }
     [data-theme="iterms"] .contacts-empty { color:var(--muted); }
     [data-theme="iterms"] .moments-empty { color:var(--muted); }
     [data-theme="iterms"] .article-page-text blockquote { color:#a8d8b0; }
@@ -772,6 +790,18 @@ export function renderWechatHubHtml(input) {
     </div>
     <div id="image-viewer-status" class="image-viewer-status">100%</div>
   </aside>
+  <aside id="reset-confirm" class="reset-confirm" aria-hidden="true">
+    <div class="reset-confirm-card" role="dialog" aria-modal="true" aria-labelledby="reset-confirm-title">
+      <div class="reset-confirm-body">
+        <p id="reset-confirm-title" class="reset-confirm-title">确定要重置阅读进度吗？</p>
+        <p class="reset-confirm-text">内容文件不会受影响。</p>
+      </div>
+      <div class="reset-confirm-actions">
+        <button id="reset-cancel" class="reset-confirm-btn" type="button">取消</button>
+        <button id="reset-confirm-btn" class="reset-confirm-btn reset-confirm-danger" type="button">重置</button>
+      </div>
+    </div>
+  </aside>
 
   <script id="chat-data" type="application/json">${payload}</script>
   <script>
@@ -811,6 +841,9 @@ export function renderWechatHubHtml(input) {
     const articleCover = document.getElementById('article-cover');
     const articleText = document.getElementById('article-text');
     const articleImages = document.getElementById('article-images');
+    const resetConfirm = document.getElementById('reset-confirm');
+    const resetCancel = document.getElementById('reset-cancel');
+    const resetConfirmBtn = document.getElementById('reset-confirm-btn');
     const accountBack = document.getElementById('account-back');
     const accountListWrap = document.getElementById('account-list-wrap');
     const unlockToast = document.getElementById('unlock-toast');
@@ -876,7 +909,7 @@ export function renderWechatHubHtml(input) {
 
     function resolveAccountCardName(user, accountId) {
       const stageKeys = collectStageKeysForAccount(accountId);
-      const rawStageIndex = Number(stageIndexMap[accountId] || 0);
+      const rawStageIndex = Number(stageIndexMap[accountKey(accountId)] || 0);
       const stageIndex = stageKeys.length
         ? Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageKeys.length - 1))
         : 0;
@@ -906,7 +939,7 @@ export function renderWechatHubHtml(input) {
     }
 
     function unlockedAccountName(accountId) {
-      const user = payload.conversations.find((c) => c.profiles?.users?.[accountId])?.profiles?.users?.[accountId] || {};
+      const user = profileForAccount(accountId);
       return firstIdentityTimelineName(user) || user.name || user.id || accountId || '';
     }
 
@@ -1411,8 +1444,19 @@ export function renderWechatHubHtml(input) {
       return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":00";
     }
 
-    function accountKey() {
-      return activeAccountId || "default";
+    function profileForAccount(accountId) {
+      if (!accountId || accountId === "default") return {};
+      return payload.conversations.find((c) => c.profiles?.users?.[accountId])?.profiles?.users?.[accountId] || {};
+    }
+
+    function accountProgressKey(accountId) {
+      const id = accountId || "default";
+      const version = String(profileForAccount(accountId)?.version || "").trim();
+      return version ? (id + "@v" + version) : id;
+    }
+
+    function accountKey(accountId) {
+      return accountProgressKey(accountId || activeAccountId || "default");
     }
 
     function keyWithAccount(key) {
@@ -2301,10 +2345,10 @@ ${imageViewerRuntimeSource()}
 
     function renderAccountList() {
       accountListWrap.innerHTML = accountIds.filter((id) => isAccountUnlocked(id)).map((id) => {
-        const user = payload.conversations.find((c) => c.profiles?.users?.[id])?.profiles?.users?.[id] || {};
+        const user = profileForAccount(id);
         const name = resolveAccountCardName(user, id);
         const stageKeys = collectStageKeysForAccount(id);
-        const rawStageIndex = Number(stageIndexMap[id] || 0);
+        const rawStageIndex = Number(stageIndexMap[accountKey(id)] || 0);
         const stageKey = stageKeys.length ? stageKeys[Math.max(0, Math.min(Number.isFinite(rawStageIndex) ? rawStageIndex : 0, stageKeys.length - 1))] : currentStageMs();
         const avatar = resolveEffectiveProfile(user, stageKey).avatar || user.avatar || "";
         const isCurrent = id === activeAccountId;
@@ -2330,10 +2374,31 @@ ${imageViewerRuntimeSource()}
       const resetBtn = accountListWrap.querySelector('.account-reset');
       if (resetBtn) {
         resetBtn.addEventListener('click', () => {
-          localStorage.clear();
-          window.location.reload();
+          openResetConfirm();
         });
       }
+    }
+
+    function openResetConfirm() {
+      if (!resetConfirm) return;
+      resetConfirm.classList.add('show');
+      resetConfirm.setAttribute('aria-hidden', 'false');
+      if (resetCancel) resetCancel.focus();
+    }
+
+    function closeResetConfirm() {
+      if (!resetConfirm) return;
+      resetConfirm.classList.remove('show');
+      resetConfirm.setAttribute('aria-hidden', 'true');
+    }
+
+    function confirmResetProgress() {
+      try {
+        localStorage.removeItem(persistKey);
+      } catch (_) {
+        // Ignore storage failures before reload.
+      }
+      window.location.reload();
     }
 
     function showAccountView() {
@@ -2377,6 +2442,16 @@ ${imageViewerRuntimeSource()}
     profileClose.addEventListener('click', closeProfile);
     profileModal.addEventListener('click', (e) => {
       if (e.target === profileModal) closeProfile();
+    });
+    if (resetCancel) resetCancel.addEventListener('click', closeResetConfirm);
+    if (resetConfirmBtn) resetConfirmBtn.addEventListener('click', confirmResetProgress);
+    if (resetConfirm) {
+      resetConfirm.addEventListener('click', (e) => {
+        if (e.target === resetConfirm) closeResetConfirm();
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && resetConfirm?.classList.contains('show')) closeResetConfirm();
     });
     timeline.addEventListener('click', (e) => {
       const avatarBtn = e.target.closest('.avatar-btn');

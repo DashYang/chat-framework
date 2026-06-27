@@ -1,0 +1,6 @@
+chat:
+  type: "group"
+  title: "阶段跨度验证"
+  self: "alice"
+  groupInfo:
+    avatar: "https://picsum.photos/seed/stage-gap-group/100/100"
