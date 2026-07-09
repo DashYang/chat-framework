@@ -48,8 +48,20 @@ function nextAutoMessageId(usedIds, autoIdRef) {
 }
 
 function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, bodyText, idRaw) {
+  if (tags.includes("highlight")) {
+    const contentTags = ["image", "link-card", "voice", "article", "contact-card", "status", "choice"];
+    const conflict = tags.find((tag) => contentTags.includes(tag));
+    if (conflict) throw new Error(`[highlight] cannot be combined with [${conflict}]`);
+  }
+  if (tags.includes("choice")) {
+    const contentTags = ["image", "link-card", "voice", "article", "contact-card", "status", "highlight"];
+    const conflict = tags.find((tag) => contentTags.includes(tag));
+    if (conflict) throw new Error(`[choice] cannot be combined with [${conflict}]`);
+  }
   if (!bodyText.trim()) {
     if (tags.includes("status")) throw new Error("[status] message requires text");
+    if (tags.includes("highlight")) throw new Error("[highlight] message requires text");
+    if (tags.includes("choice")) throw new Error("[choice] message requires yaml body");
     return;
   }
 
@@ -85,6 +97,12 @@ function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tag
   if (tags.includes("status")) {
     msg = { ...msg, kind: "status", text: bodyText.trim() };
   }
+  if (tags.includes("highlight")) {
+    msg = { ...msg, kind: "highlight", text: bodyText.trim() };
+  }
+  if (tags.includes("choice")) {
+    msg = { ...msg, kind: "choice", choice: toChoice(bodyText), text: undefined };
+  }
   const quoteTag = tags.find((t) => t.startsWith("quote:"));
   if (quoteTag) {
     msg.quote = { messageId: quoteTag.slice("quote:".length) };
@@ -97,6 +115,10 @@ function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tag
   if (heartbeatTag) {
     const val = heartbeatTag.slice("heartbeat:".length);
     msg.heartbeat = val === "end" ? 0 : Number(val) || 0;
+  }
+  const requireScoreTag = tags.find((t) => t.startsWith("require-score:"));
+  if (requireScoreTag) {
+    msg.requireScore = parseRequireScoreTag(requireScoreTag);
   }
 
   drafts.push(enrichAutoLinkCard(msg));
@@ -233,6 +255,47 @@ function toContactCard(body) {
     nickName: card.nickName || card.name || "",
     avatar: card.avatar || "",
     bio: card.bio || ""
+  };
+}
+
+function normalizeScoreScope(raw) {
+  return String(raw || "account").trim() === "global" ? "global" : "account";
+}
+
+function toChoice(body) {
+  const parsed = parseSimpleYaml(body);
+  const prompt = String(parsed.prompt || "").trim();
+  if (!prompt) throw new Error("[choice] requires prompt");
+  const scope = normalizeScoreScope(parsed.scope);
+  const rawOptions = parsed.options || {};
+  if (!rawOptions || typeof rawOptions !== "object" || Array.isArray(rawOptions)) {
+    throw new Error("[choice] requires options object");
+  }
+  const options = Object.entries(rawOptions).map(([id, option]) => {
+    const row = option && typeof option === "object" && !Array.isArray(option)
+      ? option
+      : { label: option };
+    const label = String(row.label || "").trim();
+    if (!label) throw new Error(`[choice] option "${id}" requires label`);
+    const score = Number(row.score || 0);
+    return {
+      id: String(id),
+      label,
+      score: Number.isFinite(score) ? score : 0
+    };
+  });
+  if (options.length < 2) throw new Error("[choice] requires at least two options");
+  return { prompt, scope, options };
+}
+
+function parseRequireScoreTag(tag) {
+  const raw = tag.slice("require-score:".length).trim();
+  const parts = raw.split(":").map((x) => x.trim()).filter(Boolean);
+  const score = Number(parts[0]);
+  if (!Number.isFinite(score)) throw new Error(`[require-score] invalid score: ${parts[0] || ""}`);
+  return {
+    score,
+    scope: normalizeScoreScope(parts[1])
   };
 }
 

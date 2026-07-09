@@ -1,5 +1,6 @@
 import { themes } from "./themes.js";
 import { imageViewerRuntimeSource } from "./article-markdown.js";
+import { highlightEffectRuntimeSource } from "./highlight-effect.js";
 
 const WECHAT_EMOJI_MAP = {
   微笑: "🙂",
@@ -372,7 +373,8 @@ function renderMessage(m, ctx) {
   const selfId = ctx.chat.self;
   const displayName = resolveDisplayName(m.senderId, ctx, m.senderId === selfId);
   const isCardMessage = m.kind === "link-card" || m.kind === "article-card" || m.kind === "contact-card";
-  const cls = (m.senderId === selfId ? "msg self" : "msg") + (isCardMessage ? " card-msg" : "");
+  const cls = (m.senderId === selfId ? "msg self" : "msg") + (isCardMessage ? " card-msg" : "") + (m.kind === "highlight" ? " highlight-msg" : "");
+  const highlightAttr = m.kind === "highlight" ? ` data-highlight-text="${escapeHtml(m.text || "")}"` : "";
   const avatar = `<button class="avatar-btn" type="button"
       data-user-id="${escapeHtml(m.senderId)}"
       data-display-name="${escapeHtml(displayName || u.nickName || u.name || m.senderId)}"
@@ -386,7 +388,7 @@ function renderMessage(m, ctx) {
     ? `<div class="recall-tip">${escapeHtml(recallText)}</div>`
     : `<div class="${bubbleClass}">${quote}${renderContent(m, ctx)}</div>`;
   const main = `<div class="msg-main"><p class="meta">${escapeHtml(displayName || m.senderId)} · ${escapeHtml(m.timeText)}</p>${body}</div>`;
-  return `<article class="${cls}">${m.senderId === selfId ? `${main}${avatar}` : `${avatar}${main}`}</article>`;
+  return `<article class="${cls}"${highlightAttr}>${m.senderId === selfId ? `${main}${avatar}` : `${avatar}${main}`}</article>`;
 }
 
 /**
@@ -722,7 +724,9 @@ export function renderHtml(ctx) {
         });
       });
 ${imageViewerRuntimeSource()}
+${highlightEffectRuntimeSource()}
       installImageViewer();
+      installHighlightAutoTrigger(document.querySelector('.chat'));
     })();
   </script>
 </body>

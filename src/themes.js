@@ -1,4 +1,5 @@
 import { articlePageCss, imageViewerCss } from "./article-markdown.js";
+import { highlightEffectCss } from "./highlight-effect.js";
 
 const wechatCss = `
 :root {
@@ -71,6 +72,7 @@ a.inline-link { color: #576b95; }
 .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:22px; --article-h2-size:20px; --article-h3-size:18px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.35; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:16px; --article-text-line-height:1.8; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; }
 ${articlePageCss}
 ${imageViewerCss}
+${highlightEffectCss}
 `;
 
 const paperCss = `
@@ -112,6 +114,7 @@ body { margin:0; font-family:"Source Han Serif SC","Noto Serif SC",serif; backgr
 .article-body{padding:14px 14px 30px;--article-h1-size:22px;--article-h2-size:20px;--article-h3-size:18px;--article-heading-color:#2f2a24;--article-heading-line-height:1.35;--article-heading-shadow:none;--article-heading-border:none;--article-heading-padding-bottom:0;--article-sub-color:#8f8f8f;--article-text-size:16px;--article-text-line-height:1.8;--article-text-color:#222;--article-text-shadow:none;--article-paragraph-color:#222;--article-link-color:#6b5842;--article-link-decoration:none;--article-code-font:"SF Mono","Menlo","Consolas",monospace;--article-code-bg:#f8efdf;--article-code-border:1px solid #dac8ac;--article-code-radius:4px;--article-code-color:#6b5842;--article-pre-bg:#fff4e3;--article-pre-border:1px solid #dac8ac;--article-pre-radius:4px;--article-pre-color:#2f2a24;--article-pre-shadow:none;--article-blockquote-bg:#f8efdf;--article-blockquote-border:#a48a6f;--article-blockquote-color:#5f513f;--article-inline-image-bg:#ddd;--article-inline-image-border:1px solid #dac8ac;--article-page-image-bg:#ddd;--article-page-image-border:1px solid #dac8ac;--article-image-radius:4px}
 ${articlePageCss}
 ${imageViewerCss}
+${highlightEffectCss}
 `;
 
 const itermsCss = `
@@ -156,6 +159,7 @@ a.inline-link{color:var(--accent)}
 .article-body{padding:18px 18px 36px;max-width:760px;margin:0 auto;--article-body-bg:#05080d;--article-body-border:1px solid #173020;--article-body-radius:2px;--article-body-shadow:inset 0 0 0 1px rgba(124,255,143,.04),0 14px 32px rgba(0,0,0,.38);--article-h1-size:20px;--article-h2-size:18px;--article-h3-size:16px;--article-heading-color:#7CFF8F;--article-heading-line-height:1.35;--article-heading-shadow:none;--article-heading-border:1px solid #18351f;--article-heading-padding-bottom:6px;--article-title-letter-spacing:0;--article-title-transform:none;--article-sub-color:#78977e;--article-sub-letter-spacing:.04em;--article-sub-transform:uppercase;--article-text-size:15px;--article-text-line-height:1.78;--article-text-color:#c9f5d1;--article-text-shadow:none;--article-paragraph-color:#c9f5d1;--article-link-color:#7CFF8F;--article-link-decoration:underline;--article-link-underline-offset:3px;--article-code-font:"SF Mono","Menlo","Courier New",monospace;--article-code-bg:#101823;--article-code-border:1px solid #203444;--article-code-radius:2px;--article-code-color:#ffd866;--article-pre-bg:#03070a;--article-pre-border:1px solid #18351f;--article-pre-radius:2px;--article-pre-color:#d7ffe0;--article-pre-shadow:inset 0 0 0 1px rgba(124,255,143,.04);--article-blockquote-bg:#09160f;--article-blockquote-border:#6ee7b7;--article-blockquote-color:#a8d8b0;--article-hr-color:#173020;--article-del-color:#78977e;--article-table-border:#173020;--article-table-head-bg:#0b1710;--article-table-cell-bg:#050a07;--article-inline-image-bg:#07100a;--article-inline-image-border:1px solid #214b2c;--article-page-image-bg:#07100a;--article-page-image-border:1px solid #214b2c;--article-image-radius:2px;--article-markdown-bg:#07100a;--article-markdown-border:1px solid #132919;--article-markdown-border-top:1px solid #173020;--article-markdown-radius:2px;--article-markdown-shadow:inset 0 0 0 1px rgba(124,255,143,.03);--article-markdown-padding:14px 16px 16px}
 ${articlePageCss}
 ${imageViewerCss}
+${highlightEffectCss}
 `;
 
 export const themes = {

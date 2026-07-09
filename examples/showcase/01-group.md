@@ -14,6 +14,17 @@ specVersion: "1.0"
 @protagonist #g3 [+12s] [quote:g2]
 收到，引用和 emoji 都 OK [强]
 
+@system #choice-trust [+10s] [choice]
+prompt: "物业小雅说今晚有隐藏功能演示，你要怎么回复？"
+scope: account
+options:
+  trust:
+    label: "相信她，继续看"
+    score: 2
+  doubt:
+    label: "先保持怀疑"
+    score: 0
+
 @sister #g4 [+14s] [image] [heartbeat:1]
 https://picsum.photos/seed/showcase-image/460/320
 图 + 文的消息说明在这里，支持换行。
@@ -35,6 +46,9 @@ name: 周警官
 nickName: zhou_police
 avatar: https://picsum.photos/seed/policeman/100/100
 bio: 社区民警，负责周边治安巡查。
+
+@admin #g8-secret [+10s] [require-score:2]
+这是一条单句分数解锁消息：选择相信后才会显示。
 
 @admin #g9 [2026-04-29 09:05:00]
 进入 4 月 29 日后，这条才会在同一个群聊里出现。

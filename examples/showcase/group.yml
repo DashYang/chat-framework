@@ -4,3 +4,7 @@ chat:
   self: "protagonist"
   groupInfo:
     avatar: "https://picsum.photos/seed/showcase-group/100/100"
+  requireScoreByHour:
+    "2026-04-29 09:00":
+      score: 2
+      scope: account

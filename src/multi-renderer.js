@@ -1,4 +1,5 @@
 import { articlePageCss, articleMarkdownRuntimeSource, imageViewerCss, imageViewerRuntimeSource } from "./article-markdown.js";
+import { highlightEffectCss, highlightEffectRuntimeSource, HIGHLIGHT_EFFECT_DURATION_MS } from "./highlight-effect.js";
 
 /**
  * Escape HTML special chars.
@@ -31,6 +32,8 @@ function toSnippet(message, articles, profiles) {
   if (!message) return "";
   if (message.recall) return "[消息已撤回]";
   if (message.kind === "status") return String(message.text || "").replace(/\s+/g, " ").trim();
+  if (message.kind === "highlight") return String(message.text || "").replace(/\s+/g, " ").trim();
+  if (message.kind === "choice") return `[选择] ${message.choice?.prompt || ""}`.trim();
   if (message.kind === "image") return "[图片]";
   if (message.kind === "voice") return `[语音] ${message.durationSec ? `${message.durationSec}"` : ""}`.trim();
   if (message.kind === "article-card") {
@@ -155,8 +158,12 @@ function safeJson(data) {
  */
 const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       let audioCtx = null;
-      let intervalId = null;
+      let timerId = null;
       let currentLevel = 0;
+      let lastBeatAt = 0;
+      let nextBeatAt = 0;
+      let levelVersion = 0;
+      let pulseTimer = null;
       const bpmMap = { 0: 10, 1: 65, 2: 75, 3: 90 };
 
       function ensureContext() {
@@ -169,7 +176,7 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       function playBeat() {
         const ctx = ensureContext();
         if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
+          return false;
         }
         const now = ctx.currentTime;
 
@@ -200,42 +207,104 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
         gain2.connect(ctx.destination);
         osc2.start(now + 0.18);
         osc2.stop(now + 0.34);
+        return true;
       }
 
-      function restartInterval(bpm) {
-        if (intervalId) { clearInterval(intervalId); intervalId = null; }
+      function unlock() {
+        const ctx = ensureContext();
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+      }
+
+      function nowMs() {
+        return (window.performance && window.performance.now) ? window.performance.now() : Date.now();
+      }
+
+      function currentIntervalMs() {
+        return 60000 / (bpmMap[currentLevel] || bpmMap[0]);
+      }
+
+      function scheduleAt(targetAt) {
+        if (timerId) { window.clearTimeout(timerId); timerId = null; }
+        nextBeatAt = targetAt;
+        timerId = window.setTimeout(tick, Math.max(0, targetAt - nowMs()));
+      }
+
+      function nextClockBeatAfter(baseAt, intervalMs, currentAt) {
+        let targetAt = baseAt + intervalMs;
+        while (targetAt <= currentAt) targetAt += intervalMs;
+        return targetAt;
+      }
+
+      function rescheduleFromSharedClock() {
+        if (!timerId) return;
+        const currentAt = nowMs();
+        const baseAt = lastBeatAt || currentAt;
+        scheduleAt(nextClockBeatAfter(baseAt, currentIntervalMs(), currentAt));
+      }
+
+      function tick() {
+        timerId = null;
         playBeat();
-        intervalId = setInterval(playBeat, 60000 / bpm);
+        lastBeatAt = nowMs();
+        scheduleAt(lastBeatAt + currentIntervalMs());
       }
 
       function start() {
-        if (intervalId) return;
+        if (timerId) return;
         ensureContext();
-        currentLevel = 0;
-        restartInterval(bpmMap[0]);
+        const currentAt = nowMs();
+        if (!lastBeatAt) lastBeatAt = currentAt;
+        if (!nextBeatAt || nextBeatAt <= currentAt) {
+          nextBeatAt = nextClockBeatAfter(lastBeatAt, currentIntervalMs(), currentAt);
+        }
+        scheduleAt(nextBeatAt);
       }
 
       function stop() {
-        if (intervalId) { clearInterval(intervalId); intervalId = null; }
+        if (timerId) { window.clearTimeout(timerId); timerId = null; }
       }
 
-      function setLevel(n) {
-        if (!intervalId) return;
+      function applyLevel(n) {
         const num = Number(n);
         if (isNaN(num)) return;
         currentLevel = num;
-        restartInterval(bpmMap[num] || bpmMap[0]);
+        levelVersion += 1;
+        rescheduleFromSharedClock();
+      }
+
+      function setLevel(n) {
+        if (pulseTimer) {
+          window.clearTimeout(pulseTimer);
+          pulseTimer = null;
+        }
+        applyLevel(n);
+      }
+
+      function pulseLevel(n, durationMs) {
+        if (pulseTimer) {
+          window.clearTimeout(pulseTimer);
+          pulseTimer = null;
+        }
+        const restoreLevel = currentLevel;
+        applyLevel(n);
+        const pulseVersion = levelVersion;
+        pulseTimer = window.setTimeout(() => {
+          pulseTimer = null;
+          if (levelVersion === pulseVersion) applyLevel(restoreLevel);
+        }, Math.max(0, Number(durationMs || 0)));
       }
 
       function reset() {
-        if (intervalId) { setLevel(0); }
+        setLevel(0);
       }
 
       function isRunning() {
-        return !!intervalId;
+        return !!timerId;
       }
 
-      return { start, stop, setLevel, reset, isRunning };
+      return { start, stop, unlock, setLevel, pulseLevel, reset, isRunning };
     })();`;
 
 /**
@@ -412,6 +481,7 @@ export function renderWechatHubHtml(input) {
     .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:19px; --article-h2-size:17px; --article-h3-size:16px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.38; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:15px; --article-text-line-height:1.75; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; --article-markdown-border-top:1px solid #ededed; --article-markdown-padding-top:14px; }
     ${articlePageCss}
     ${imageViewerCss}
+    ${highlightEffectCss}
     .list-scroll {
       overflow-y: auto;
       flex: 1;
@@ -573,6 +643,11 @@ export function renderWechatHubHtml(input) {
     .msg.card-msg .bubble { width: 100%; white-space: normal; }
     .msg.self .bubble { background: var(--outgoing); text-align: left; }
     .bubble.media { padding: 4px; background: transparent; }
+    .choice-panel { display:flex; flex-direction:column; gap:8px; min-width:190px; white-space:normal; }
+    .choice-prompt { font-size:14px; line-height:1.45; color:var(--text); }
+    .choice-option { width:100%; border:1px solid var(--line); background:#f7f7f7; border-radius:8px; padding:8px 10px; text-align:left; color:#222; cursor:pointer; font-size:14px; line-height:1.35; }
+    .choice-option.selected { border-color:var(--green); background:#eefbf3; color:#047a3c; font-weight:600; }
+    .choice-option:disabled { cursor:default; opacity:.86; }
     .recall-tip { font-size:12px; color:var(--muted); text-align:center; padding:4px 0; }
     .quote { margin-bottom: 8px; background: rgba(0,0,0,0.06); border-left: 3px solid rgba(0,0,0,0.18); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: #333; }
     .img { max-width: min(320px, 100%); border-radius: 8px; display: block; }
@@ -634,6 +709,8 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .bubble { color:var(--text); background:var(--incoming); border:1px solid var(--line); border-radius:2px; text-shadow:0 0 3px rgba(0,255,65,0.2); }
     [data-theme="iterms"] .msg.self .bubble { background:var(--outgoing); border-color:#1a4020; color:#d0ffd0; }
     [data-theme="iterms"] .bubble.media { background:transparent; border:none; text-shadow:none; }
+    [data-theme="iterms"] .choice-option { background:#0a0d14; border-color:#18351d; border-radius:2px; color:var(--text); font-family:var(--mono); }
+    [data-theme="iterms"] .choice-option.selected { background:#0d1a12; border-color:var(--accent); color:var(--accent); box-shadow:0 0 8px rgba(0,255,65,.16); }
     [data-theme="iterms"] .quote { border-left-color:var(--accent); background:#0d1a12; color:#a0e0a0; text-shadow:0 0 3px rgba(0,255,65,0.15); }
     [data-theme="iterms"] .img { border:1px solid #1a4020; }
     [data-theme="iterms"] .avatar { border-radius:2px; }
@@ -701,7 +778,7 @@ export function renderWechatHubHtml(input) {
   </style>` : ""}
 </head>
 <body data-theme="${escapeHtml(ui.theme)}">
-  <main class="phone">
+  <main id="phone" class="phone">
     <div class="status-bar">
       <div id="status-carrier">${escapeHtml(ui.statusBar.carrier)}</div>
       <div id="status-time">${escapeHtml(ui.statusBar.time)}</div>
@@ -806,6 +883,7 @@ export function renderWechatHubHtml(input) {
   <script id="chat-data" type="application/json">${payload}</script>
   <script>
     const payload = JSON.parse(document.getElementById('chat-data').textContent);
+    const phone = document.getElementById('phone');
     const listView = document.getElementById('list-view');
     const momentsView = document.getElementById('moments-view');
     const contactsView = document.getElementById('contacts-view');
@@ -858,6 +936,7 @@ export function renderWechatHubHtml(input) {
     let stageIndexMap = {};
     let unlockedAccounts = {};
     let accountNoticeMap = {};
+    let scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
     let stageIndex = 0;
     let timelineStages = [];
     let activeAccountId = "";
@@ -979,8 +1058,8 @@ export function renderWechatHubHtml(input) {
       const nextMs = parseIdentityReference(nextStageKey);
       if (prevMs === null || nextMs === null || nextMs <= prevMs) return "";
       const months = completeMonthDiff(new Date(prevMs), new Date(nextMs));
-      if (months >= 12) return '过 ' + Math.floor(months / 12) + ' 年后';
-      if (months >= 1) return '过 ' + months + ' 月后';
+      if (months >= 12) return '' + Math.floor(months / 12) + '年后';
+      if (months >= 1) return '' + months + '月后';
       return "";
     }
 
@@ -1013,6 +1092,7 @@ export function renderWechatHubHtml(input) {
         const moments = user.moments || {};
         for (const moment of Object.values(moments)) {
           if (!moment) continue;
+          if (!isScoreUnlocked(moment.requireScore)) continue;
           const publishRaw = moment.publishAt || moment.time || "";
           const momentKey = activeAccountId + "|" + (moment.id || publishRaw);
           if (seen.has(momentKey)) continue;
@@ -1264,6 +1344,7 @@ export function renderWechatHubHtml(input) {
           if (seen.has(key)) continue;
           const item = repo[key];
           if (!item) continue;
+          if (!isScoreUnlocked(item.requireScore)) continue;
           const publishRaw = item.publishAt || item.time || "";
           const day = toStageKey(publishRaw);
           if (!day || day > stageKey) continue;
@@ -1391,6 +1472,10 @@ export function renderWechatHubHtml(input) {
           }
           unlockedAccounts = parsed.unlockedAccounts || {};
           accountNoticeMap = parsed.accountNoticeMap || {};
+          scoreState = parsed.scoreState || { global: { score: 0 }, accounts: {}, choices: {} };
+          if (!scoreState.global) scoreState.global = { score: 0 };
+          if (!scoreState.accounts) scoreState.accounts = {};
+          if (!scoreState.choices) scoreState.choices = {};
           stageIndex = Number(parsed.stageIndex || 0);
           activeAccountId = parsed.activeAccountId || "";
         } else {
@@ -1401,6 +1486,7 @@ export function renderWechatHubHtml(input) {
           stageIndexMap = {};
           unlockedAccounts = {};
           accountNoticeMap = {};
+          scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
           stageIndex = 0;
         }
       } catch (_) {
@@ -1411,6 +1497,7 @@ export function renderWechatHubHtml(input) {
         stageIndexMap = {};
         unlockedAccounts = {};
         accountNoticeMap = {};
+        scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
         stageIndex = 0;
       }
     }
@@ -1425,6 +1512,7 @@ export function renderWechatHubHtml(input) {
           stageIndexMap,
           unlockedAccounts,
           accountNoticeMap,
+          scoreState,
           stageIndex,
           activeAccountId
         }));
@@ -1461,6 +1549,65 @@ export function renderWechatHubHtml(input) {
 
     function keyWithAccount(key) {
       return accountKey() + "|" + key;
+    }
+
+    function normalizeScoreRule(rule) {
+      if (rule === undefined || rule === null || rule === "") return null;
+      if (typeof rule === "number") return Number.isFinite(rule) ? { score: rule, scope: "account" } : null;
+      if (typeof rule === "string") {
+        const score = Number(rule.trim());
+        return Number.isFinite(score) ? { score, scope: "account" } : null;
+      }
+      if (typeof rule === "object" && !Array.isArray(rule)) {
+        const score = Number(rule.score);
+        if (!Number.isFinite(score)) return null;
+        return { score, scope: String(rule.scope || "account") === "global" ? "global" : "account" };
+      }
+      return null;
+    }
+
+    function accountScoreBucket() {
+      const key = accountKey();
+      if (!scoreState.accounts[key]) scoreState.accounts[key] = { score: 0 };
+      return scoreState.accounts[key];
+    }
+
+    function currentScore(scope) {
+      if (String(scope || "account") === "global") return Number(scoreState.global?.score || 0);
+      return Number(accountScoreBucket().score || 0);
+    }
+
+    function isScoreUnlocked(rule) {
+      const normalized = normalizeScoreRule(rule);
+      if (!normalized) return true;
+      return currentScore(normalized.scope) >= normalized.score;
+    }
+
+    function addScore(scope, delta) {
+      const amount = Number(delta || 0);
+      if (!Number.isFinite(amount) || amount === 0) return;
+      if (String(scope || "account") === "global") {
+        if (!scoreState.global) scoreState.global = { score: 0 };
+        scoreState.global.score = Number(scoreState.global.score || 0) + amount;
+      } else {
+        const bucket = accountScoreBucket();
+        bucket.score = Number(bucket.score || 0) + amount;
+      }
+    }
+
+    function choiceStateKey(conversationId, messageId, scope) {
+      const prefix = String(scope || "account") === "global" ? "global" : accountKey();
+      return prefix + "|" + conversationId + "|" + messageId;
+    }
+
+    function selectedChoiceId(conversationId, msg) {
+      const scope = msg?.choice?.scope || "account";
+      return scoreState.choices?.[choiceStateKey(conversationId, msg?.id || "", scope)] || "";
+    }
+
+    function hourScoreRule(conv, day) {
+      const rules = conv?.chat?.requireScoreByHour || {};
+      return rules[day] || rules[String(day || "").slice(0, 13) + ":00"] || null;
     }
 
     function initAccounts() {
@@ -1528,10 +1675,14 @@ export function renderWechatHubHtml(input) {
       const units = new Map();
       for (const conv of (payload.conversations || [])) {
         if (!conversationMatchesAccount(conv, accountId)) continue;
+        if (!isScoreUnlocked(conv.chat?.requireScore)) continue;
 
         const messageDays = new Set();
         for (const msg of (conv.messages || [])) {
           const day = toStageKey(msg.timestamp || msg.timeText || "");
+          if (!day) continue;
+          if (!isScoreUnlocked(hourScoreRule(conv, day))) continue;
+          if (!isScoreUnlocked(msg.requireScore)) continue;
           if (day) messageDays.add(day);
         }
         for (const day of messageDays) {
@@ -1545,6 +1696,7 @@ export function renderWechatHubHtml(input) {
         for (const refId of articleRefsForUser(selfUser)) {
           const item = repo[String(refId)];
           const day = toStageKey(item?.publishAt || item?.time || "");
+          if (!isScoreUnlocked(item?.requireScore)) continue;
           if (day) units.set("article|" + String(refId), { type: "article", day });
         }
 
@@ -1555,6 +1707,7 @@ export function renderWechatHubHtml(input) {
             const publishRaw = moment?.publishAt || moment?.time || "";
             const day = toStageKey(publishRaw);
             if (!day) continue;
+            if (!isScoreUnlocked(moment?.requireScore)) continue;
             units.set("moment|" + accountId + "|" + (moment.id || publishRaw), { type: "moment", day });
           }
         }
@@ -1601,6 +1754,22 @@ export function renderWechatHubHtml(input) {
         timelineStages = [now];
       }
       stageIndex = Math.max(0, Math.min(stageIndex, timelineStages.length - 1));
+      persistStageIndexForAccount();
+    }
+
+    function refreshTimelineStagesPreserveCurrent() {
+      const current = currentStageMs();
+      timelineStages = collectStageKeysForAccount(activeAccountId);
+      if (!timelineStages.length) {
+        const now = toStageKey(new Date().toISOString());
+        timelineStages = [now];
+      }
+      const exact = timelineStages.indexOf(current);
+      if (exact !== -1) stageIndex = exact;
+      else {
+        const next = timelineStages.findIndex((day) => day > current);
+        stageIndex = next === -1 ? timelineStages.length - 1 : next;
+      }
       persistStageIndexForAccount();
     }
 
@@ -1670,11 +1839,25 @@ export function renderWechatHubHtml(input) {
       setBadgeDot(badgeMe, meCount > 0);
       updateStatusProgress(accountView.style.display === 'flex' ? "accounts" : undefined);
     }
+    function isVisibleByConversationScore(conv) {
+      return isScoreUnlocked(conv?.chat?.requireScore);
+    }
+    function isVisibleMessageAtDay(conv, msg, day) {
+      if (!isVisibleByAccount(conv) || !isVisibleByConversationScore(conv)) return false;
+      const msgDay = toStageKey(msg?.timestamp || msg?.timeText || "");
+      if (!msgDay || msgDay > day) return false;
+      if (!isScoreUnlocked(hourScoreRule(conv, msgDay))) return false;
+      if (!isScoreUnlocked(msg?.requireScore)) return false;
+      return true;
+    }
+    function visibleMessagesUntil(conv, day) {
+      return (conv.messages || []).filter((m) => isVisibleMessageAtDay(conv, m, day));
+    }
     function hasStageMessages(conv, day) {
-      return (conv.messages || []).some((m) => toStageKey(m.timestamp || m.timeText || "") <= day);
+      return visibleMessagesUntil(conv, day).length > 0;
     }
     function hasNewMessagesOnDay(conv, day) {
-      return (conv.messages || []).some((m) => toStageKey(m.timestamp || m.timeText || "") === day);
+      return (conv.messages || []).some((m) => toStageKey(m.timestamp || m.timeText || "") === day && isVisibleMessageAtDay(conv, m, day));
     }
     function hasAutoplayUnread(conv, day) {
       const seen = getStageSeen(day);
@@ -1689,6 +1872,8 @@ export function renderWechatHubHtml(input) {
       if (!message) return "";
       if (message.recall) return "[消息已撤回]";
       if (message.kind === "status") return String(message.text || "").replace(/\s+/g, " ").trim();
+      if (message.kind === "highlight") return String(message.text || "").replace(/\s+/g, " ").trim();
+      if (message.kind === "choice") return ('[选择] ' + (message.choice?.prompt || '')).trim();
       if (message.kind === "image") return "[图片]";
       if (message.kind === "voice") {
         return ('[语音] ' + (message.durationSec ? (String(message.durationSec) + '"') : '')).trim();
@@ -1717,10 +1902,10 @@ export function renderWechatHubHtml(input) {
     }
     function listDisplayMessage(conv, day) {
       const messages = conv.messages || [];
-      const visible = messages.filter((m) => toStageKey(m.timestamp || m.timeText || "") <= day);
+      const visible = visibleMessagesUntil(conv, day);
       if (!visible.length) return null;
       if (hasAutoplayUnread(conv, day)) {
-        const firstToday = messages.find((m) => toStageKey(m.timestamp || m.timeText || "") === day);
+        const firstToday = messages.find((m) => toStageKey(m.timestamp || m.timeText || "") === day && isVisibleMessageAtDay(conv, m, day));
         if (firstToday) return firstToday;
       }
       return visible[visible.length - 1];
@@ -1779,8 +1964,9 @@ export function renderWechatHubHtml(input) {
 
     function isVisibleByStage(conv) {
       if (!isVisibleByAccount(conv)) return false;
+      if (!isVisibleByConversationScore(conv)) return false;
       const unlock = conversationUnlockMs(conv);
-      return unlock ? unlock <= currentStageMs() : true;
+      return unlock ? unlock <= currentStageMs() && hasStageMessages(conv, currentStageMs()) : hasStageMessages(conv, currentStageMs());
     }
 
     function isCurrentStageConversation(conv) {
@@ -1879,6 +2065,9 @@ export function renderWechatHubHtml(input) {
       if (message?.kind === 'article-card' || message?.kind === 'contact-card' || message?.kind === 'link-card') {
         return Math.max(2000, Math.min(10000, readingMs));
       }
+      if (message?.kind === 'highlight') {
+        return Math.max(${HIGHLIGHT_EFFECT_DURATION_MS}, Math.min(12000, readingMs));
+      }
       return Math.max(900, Math.min(12000, readingMs));
     }
 
@@ -1920,6 +2109,18 @@ export function renderWechatHubHtml(input) {
     }
 ${articleMarkdownRuntimeSource()}
 ${imageViewerRuntimeSource()}
+${highlightEffectRuntimeSource()}
+    function triggerMessageHighlight(node) {
+      try {
+        const wasPlayed = node?.dataset.highlightPlayed === 'true';
+        triggerHighlightNode(node, phone);
+        if (!wasPlayed && node?.dataset.highlightPlayed === 'true') {
+          heartbeatEngine.pulseLevel(3, ${HIGHLIGHT_EFFECT_DURATION_MS});
+        }
+      } catch (err) {
+        console.warn("Highlight effect failed", err);
+      }
+    }
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
@@ -2009,7 +2210,7 @@ ${imageViewerRuntimeSource()}
       };
     }
 
-    function renderContent(msg, conv) {
+    function renderContent(msg, conv, opts) {
       if (msg.kind === 'image') {
         const caption = msg.text ? '<div class="img-caption">' + formatText(msg.text, msg.mentions) + '</div>' : '';
         return '<img class="img" src="' + esc(msg.imageUrl || '') + '" data-preview-src="' + esc(msg.imageUrl || '') + '" alt="image"/>' + caption;
@@ -2110,6 +2311,22 @@ ${imageViewerRuntimeSource()}
           + '<div class="contact-bio">' + esc(c.bio || '') + '</div></div>'
           + '</div>';
       }
+      if (msg.kind === 'choice') {
+        const choice = msg.choice || {};
+        const picked = selectedChoiceId(opts?.conversationId || "", msg);
+        const disabled = picked ? ' disabled' : '';
+        const options = Array.isArray(choice.options) ? choice.options : [];
+        const optionHtml = options.map((option) => {
+          const selected = picked && picked === option.id;
+          return '<button class="choice-option' + (selected ? ' selected' : '') + '" type="button" data-choice-option="' + esc(option.id || '') + '"' + disabled + '>'
+            + esc(option.label || '')
+            + '</button>';
+        }).join('');
+        return '<div class="choice-panel" data-choice-mid="' + esc(msg.id || '') + '">'
+          + '<div class="choice-prompt">' + esc(choice.prompt || '') + '</div>'
+          + optionHtml
+          + '</div>';
+      }
       return '<div>' + formatText(msg.text || '', msg.mentions) + '</div>';
     }
 
@@ -2122,8 +2339,9 @@ ${imageViewerRuntimeSource()}
       const resolvedProfile = resolveEffectiveProfile(user, currentStageMs());
       const self = activeAccountId || conv.self;
       const displayName = resolveDisplayName(conv, msg.senderId);
-      const isCardMessage = msg.kind === 'link-card' || msg.kind === 'article-card' || msg.kind === 'contact-card';
-      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '');
+      const isCardMessage = msg.kind === 'link-card' || msg.kind === 'article-card' || msg.kind === 'contact-card' || msg.kind === 'choice';
+      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '') + (msg.kind === 'highlight' ? ' highlight-msg' : '');
+      const highlightAttr = msg.kind === 'highlight' ? (' data-highlight-text="' + esc(msg.text || '') + '"') : '';
       const avatarUrl = resolvedProfile.avatar || user.avatar || '';
         const avatar = '<button class="avatar-btn" type="button"'
          + ' data-name="' + esc(resolvedProfile.name || msg.senderId) + '"'
@@ -2135,13 +2353,13 @@ ${imageViewerRuntimeSource()}
       const bubbleCls = (msg.kind === 'image' || msg.kind === 'voice') ? 'bubble media' : 'bubble';
       const body = (opts.forceRecalled && msg.recall)
         ? '<div class="recall-tip">' + esc(recallText(msg, conv, user)) + '</div>'
-        : '<div class="' + bubbleCls + '">' + renderQuote(msg.quote, conv) + renderContent(msg, conv) + '</div>';
+        : '<div class="' + bubbleCls + '">' + renderQuote(msg.quote, conv) + renderContent(msg, conv, opts) + '</div>';
       const main = '<div class="msg-main">'
         + '<p class="meta">' + esc(displayName || msg.senderId) + ' · ' + esc(msg.timeText || '') + '</p>'
         + '<div class="msg-body">' + body + '</div>'
         + '</div>';
       const html = msg.senderId === self ? main + avatar : avatar + main;
-      return '<article class="' + selfCls + '" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + html + '</article>';
+      return '<article class="' + selfCls + '" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '"' + highlightAttr + '>' + html + '</article>';
     }
 
     function applyRecall(conversationId, msg, conv) {
@@ -2181,6 +2399,38 @@ ${imageViewerRuntimeSource()}
       timer = window.setTimeout(nextStep, Math.max(0, Number(delay || 0)));
     }
 
+    function chooseOption(conversationId, messageId, optionId) {
+      const conv = payload.conversations.find((x) => x.id === conversationId);
+      const msg = conv?.messages?.find((m) => m.id === messageId);
+      if (!conv || !msg || msg.kind !== "choice") return;
+      const choice = msg.choice || {};
+      const key = choiceStateKey(conversationId, messageId, choice.scope || "account");
+      if (scoreState.choices[key]) return;
+      const option = (choice.options || []).find((row) => row.id === optionId);
+      if (!option) return;
+      scoreState.choices[key] = option.id;
+      addScore(choice.scope || "account", option.score || 0);
+      refreshTimelineStagesPreserveCurrent();
+      saveSeen();
+      const node = timeline.querySelector('article[data-cid="' + esc(conversationId) + '"][data-mid="' + esc(messageId) + '"]');
+      if (node) {
+        node.outerHTML = renderMessage(msg, conv, { conversationId });
+      }
+      renderList();
+      if (momentsView.style.display === 'flex') {
+        renderMoments();
+        observeRenderedMoments();
+      }
+      if (contactsView.style.display === 'flex') renderContacts();
+      updateUnreadBadges();
+      updateStatusProgress();
+      maybeAdvanceStage();
+      if (activePlayback?.conversationId === conversationId && activePlayback.awaitingChoiceId === messageId) {
+        activePlayback.awaitingChoiceId = "";
+        schedulePlayback(activePlayback.playNext, 250);
+      }
+    }
+
     function markSeen(conversationId) {
       seenMap[keyWithAccount(conversationId)] = true;
       const stage = currentStageMs();
@@ -2218,7 +2468,7 @@ ${imageViewerRuntimeSource()}
         const hasUnread = hasAutoplayUnread(c, stage);
         const dot = hasUnread ? '<span class="list-dot"></span>' : '';
         const displayMsg = listDisplayMessage(c, stage);
-        const preview = displayMsg ? toSnippetRuntime(displayMsg, c) : (c.preview || "");
+        const preview = hasUnread ? "你收到一条新消息" : (displayMsg ? toSnippetRuntime(displayMsg, c) : (c.preview || ""));
         const listTime = displayMsg ? toListTimeRuntime(displayMsg.timeText || displayMsg.timestamp || "") : (c.listTime || "");
         debugLog("renderList:item", {
           account: activeAccountId,
@@ -2267,9 +2517,9 @@ ${imageViewerRuntimeSource()}
       const stageMs = currentStageMs();
       const stageSeen = getStageSeen(stageMs);
       const prevStageMs = stageIndex > 0 ? timelineStages[stageIndex - 1] : "";
-      const stageMessages = (conv.messages || []).filter((m) => toStageKey(m.timestamp || m.timeText || "") <= stageMs);
+      const stageMessages = visibleMessagesUntil(conv, stageMs);
       const oldMessages = prevStageMs
-        ? (conv.messages || []).filter((m) => toStageKey(m.timestamp || m.timeText || "") <= prevStageMs)
+        ? visibleMessagesUntil(conv, prevStageMs)
         : [];
       debugLog("openConversation", {
         account: activeAccountId,
@@ -2321,9 +2571,17 @@ ${imageViewerRuntimeSource()}
         const msg = stageMessages[playback.current];
         if (msg.heartbeat !== undefined) heartbeatEngine.setLevel(msg.heartbeat);
         timeline.insertAdjacentHTML('beforeend', renderMessage(msg, conv, { conversationId }));
+        if (msg.kind === 'highlight') {
+          triggerMessageHighlight(timeline.querySelector('article[data-cid="' + conversationId + '"][data-mid="' + msg.id + '"]'));
+        }
         queueRecall(conversationId, msg, conv);
         timeline.scrollTop = timeline.scrollHeight;
         playback.current += 1;
+        if (msg.kind === "choice" && !selectedChoiceId(conversationId, msg)) {
+          playback.awaitingChoiceId = msg.id;
+          stopPlaybackTimer();
+          return;
+        }
         if (playback.current >= stageMessages.length) {
           schedulePlayback(() => {
             if (activePlayback === playback && !playback.finished) finishConversation(conversationId);
@@ -2474,6 +2732,12 @@ ${imageViewerRuntimeSource()}
         openInlineArticle(data);
         return;
       }
+      const choiceBtn = e.target.closest('.choice-option');
+      if (choiceBtn) {
+        const article = choiceBtn.closest('article[data-cid][data-mid]');
+        chooseOption(article?.dataset?.cid || "", article?.dataset?.mid || "", choiceBtn.dataset.choiceOption || "");
+        return;
+      }
       const voiceBtn = e.target.closest('.voice-btn');
       if (voiceBtn) {
         const src = voiceBtn.dataset.audioUrl || '';
@@ -2519,11 +2783,13 @@ ${imageViewerRuntimeSource()}
     initAccounts();
     initTimelineStages();
     installImageViewer();
+    installHighlightEffect(phone);
     enterAccountView();
     renderList();
     heartbeatEngine.start();
     document.addEventListener('click', function resumeHeartbeat() {
       document.removeEventListener('click', resumeHeartbeat);
+      heartbeatEngine.unlock();
       if (!heartbeatEngine.isRunning()) heartbeatEngine.start();
     }, { once: true });
   </script>
@@ -2647,6 +2913,7 @@ export function renderWechatStoryHtml(input) {
     .article-body { padding:18px 18px 36px; max-width:680px; margin:0 auto; --article-h1-size:19px; --article-h2-size:17px; --article-h3-size:16px; --article-heading-color:#1f1f1f; --article-heading-line-height:1.38; --article-heading-shadow:none; --article-heading-border:none; --article-heading-padding-bottom:0; --article-sub-color:#8f8f8f; --article-text-size:15px; --article-text-line-height:1.75; --article-text-color:#222; --article-text-shadow:none; --article-paragraph-color:#222; --article-link-color:#576b95; --article-link-decoration:none; --article-code-font:"SF Mono","Menlo","Consolas",monospace; --article-code-bg:#f6f6f6; --article-code-border:none; --article-code-radius:4px; --article-code-color:#d14; --article-pre-bg:#f6f8fa; --article-pre-border:none; --article-pre-radius:8px; --article-pre-color:#24292f; --article-pre-shadow:none; --article-blockquote-bg:#f7f7f7; --article-blockquote-border:#d0d0d0; --article-blockquote-color:#555; --article-inline-image-bg:#ddd; --article-inline-image-border:none; --article-page-image-bg:#ddd; --article-page-image-border:none; --article-image-radius:8px; --article-markdown-border-top:1px solid #ededed; --article-markdown-padding-top:14px; }
     ${articlePageCss}
     ${imageViewerCss}
+    ${highlightEffectCss}
     [data-theme="iterms"] { --bg:#0a0d14; --panel:#0d1117; --text:#33ff66; --muted:#6aaa70; --line:#173020; --incoming:#141b22; --outgoing:#0e2a15; --green:#00ff41; --accent:#00ff41; --glow:0 0 6px rgba(0,255,65,0.45); }
     body[data-theme="iterms"] { font-family:"SF Mono","Menlo","Courier New",monospace; background:#05080d; }
     [data-theme="iterms"] .phone { background:var(--bg); border-color:#173020; }
@@ -2841,6 +3108,9 @@ export function renderWechatStoryHtml(input) {
       if (message?.kind === 'article-card' || message?.kind === 'contact-card' || message?.kind === 'link-card') {
         return Math.max(2000, Math.min(10000, readingMs));
       }
+      if (message?.kind === 'highlight') {
+        return Math.max(${HIGHLIGHT_EFFECT_DURATION_MS}, Math.min(12000, readingMs));
+      }
       return Math.max(900, Math.min(12000, readingMs));
     }
     const emojiMap = {
@@ -2880,6 +3150,18 @@ export function renderWechatStoryHtml(input) {
     }
 ${articleMarkdownRuntimeSource()}
 ${imageViewerRuntimeSource()}
+${highlightEffectRuntimeSource()}
+    function triggerMessageHighlight(node) {
+      try {
+        const wasPlayed = node?.dataset.highlightPlayed === 'true';
+        triggerHighlightNode(node, phone);
+        if (!wasPlayed && node?.dataset.highlightPlayed === 'true') {
+          heartbeatEngine.pulseLevel(3, ${HIGHLIGHT_EFFECT_DURATION_MS});
+        }
+      } catch (err) {
+        console.warn("Highlight effect failed", err);
+      }
+    }
     function formatVoiceDuration(sec) {
       const n = Number(sec || 0);
       return n > 0 ? n + '"' : '语音';
@@ -3174,7 +3456,8 @@ ${imageViewerRuntimeSource()}
       const self = conv.self;
       const displayName = resolveStoryDisplayName(conv, msg.senderId);
       const isCardMessage = msg.kind === 'link-card' || msg.kind === 'article-card' || msg.kind === 'contact-card';
-      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '');
+      const selfCls = (msg.senderId === self ? 'msg self' : 'msg') + (isCardMessage ? ' card-msg' : '') + (msg.kind === 'highlight' ? ' highlight-msg' : '');
+      const highlightAttr = msg.kind === 'highlight' ? (' data-highlight-text="' + esc(msg.text || '') + '"') : '';
         const avatar = '<button class="avatar-btn" type="button"'
          + ' data-name="' + esc(resolvedProfile.name || msg.senderId) + '"'
          + ' data-display-name="' + esc(displayName || user.nickName || resolvedProfile.name || msg.senderId || '') + '"'
@@ -3188,7 +3471,7 @@ ${imageViewerRuntimeSource()}
         : '<div class="' + bubbleCls + '">' + renderQuote(msg.quote, conv) + renderContent(msg, conv) + '</div>';
       const main = '<div class="msg-main"><p class="meta">' + esc(displayName || msg.senderId) + ' · ' + esc(msg.timeText || '') + '</p><div class="msg-body">' + body + '</div></div>';
       const html = msg.senderId === self ? main + avatar : avatar + main;
-      return '<article class="' + selfCls + '" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + html + '</article>';
+      return '<article class="' + selfCls + '" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '"' + highlightAttr + '>' + html + '</article>';
     }
     function applyRecall(conversationId, msg, conv) {
       const node = timeline.querySelector('article[data-cid="' + conversationId + '"][data-mid="' + msg.id + '"] .msg-body');
@@ -3253,6 +3536,9 @@ ${imageViewerRuntimeSource()}
       let current = Math.max(0, Number(conv.startIndex || 0));
       if (conv.messages[current] && conv.messages[current].heartbeat !== undefined) heartbeatEngine.setLevel(conv.messages[current].heartbeat);
       timeline.insertAdjacentHTML('beforeend', renderMessage(conv.messages[current], conv, { conversationId }));
+      if (conv.messages[current]?.kind === 'highlight') {
+        triggerMessageHighlight(timeline.querySelector('article[data-cid="' + conversationId + '"][data-mid="' + conv.messages[current].id + '"]'));
+      }
       queueRecall(conversationId, conv.messages[current], conv);
       timeline.scrollTop = timeline.scrollHeight;
       current += 1;
@@ -3264,6 +3550,9 @@ ${imageViewerRuntimeSource()}
         }
         if (conv.messages[current] && conv.messages[current].heartbeat !== undefined) heartbeatEngine.setLevel(conv.messages[current].heartbeat);
         timeline.insertAdjacentHTML('beforeend', renderMessage(conv.messages[current], conv, { conversationId }));
+        if (conv.messages[current]?.kind === 'highlight') {
+          triggerMessageHighlight(timeline.querySelector('article[data-cid="' + conversationId + '"][data-mid="' + conv.messages[current].id + '"]'));
+        }
         queueRecall(conversationId, conv.messages[current], conv);
         timeline.scrollTop = timeline.scrollHeight;
         const delay = inferReplayDelayMs(conv.messages[current]);
@@ -3352,10 +3641,12 @@ ${imageViewerRuntimeSource()}
 
     loadState();
     installImageViewer();
+    installHighlightEffect(phone);
     renderList();
     heartbeatEngine.start();
     document.addEventListener('click', function resumeHeartbeat() {
       document.removeEventListener('click', resumeHeartbeat);
+      heartbeatEngine.unlock();
       if (!heartbeatEngine.isRunning()) heartbeatEngine.start();
     }, { once: true });
   </script>

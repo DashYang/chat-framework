@@ -180,7 +180,7 @@ function normalizeUserProfile(id, parsed) {
       selfInGroups: profile.aliases?.selfInGroups || {},
       contacts: profile.aliases?.contacts || {}
     },
-    moments: profile.moments || {},
+    moments: normalizeMoments(profile.moments || {}),
     officialArticles: rawArticleRefs.map(normalizeArticleRef),
     chatFiles: Array.isArray(profile.chatFiles) ? profile.chatFiles.map((x) => String(x)) : [],
     groupChats: profile.groupChats || {},
@@ -197,6 +197,53 @@ function normalizeUserProfile(id, parsed) {
   return out;
 }
 
+function normalizeScoreScope(raw) {
+  return String(raw || "account").trim() === "global" ? "global" : "account";
+}
+
+function normalizeRequireScore(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? { score: raw, scope: "account" } : undefined;
+  }
+  if (typeof raw === "string") {
+    const score = Number(raw.trim());
+    return Number.isFinite(score) ? { score, scope: "account" } : undefined;
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    const score = Number(raw.score);
+    if (!Number.isFinite(score)) return undefined;
+    return { score, scope: normalizeScoreScope(raw.scope) };
+  }
+  return undefined;
+}
+
+function normalizeRequireScoreByHour(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  for (const [hour, rule] of Object.entries(raw)) {
+    const normalized = normalizeRequireScore(rule);
+    if (normalized) out[String(hour)] = normalized;
+  }
+  return out;
+}
+
+function normalizeMoments(moments) {
+  const out = {};
+  for (const [id, moment] of Object.entries(moments || {})) {
+    if (!moment || typeof moment !== "object" || Array.isArray(moment)) {
+      out[id] = moment;
+      continue;
+    }
+    const normalized = { ...moment };
+    const requireScore = normalizeRequireScore(moment.requireScore);
+    if (requireScore) normalized.requireScore = requireScore;
+    else delete normalized.requireScore;
+    out[id] = normalized;
+  }
+  return out;
+}
+
 const ARTICLE_FILE_EXT_RE = /\.(ya?ml|md|markdown)$/i;
 
 function articleIdFromFileName(fileName) {
@@ -207,7 +254,7 @@ function normalizeArticle(id, parsed) {
   const article = parsed.article || {};
   const images = Array.isArray(article.images) ? article.images : (article.images ? [article.images] : []);
   const text = article.markdown || article.body || article.text || article.content || "";
-  return {
+  const out = {
     id,
     title: article.title || id,
     author: article.author || "",
@@ -218,6 +265,9 @@ function normalizeArticle(id, parsed) {
     html: article.html || renderArticleMarkdown(text),
     images
   };
+  const requireScore = normalizeRequireScore(article.requireScore);
+  if (requireScore) out.requireScore = requireScore;
+  return out;
 }
 
 function normalizeArticleRef(ref) {
@@ -396,6 +446,16 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
     mergeDocLinkCardArticles(articles, parsed.messages, resourceRootDir);
     const chatWrap = chatPath ? parseSimpleYaml(readText(chatPath)) : {};
     const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
+    if (!chat.requireScore) {
+      const frontmatterRequireScore = normalizeRequireScore(parsed.frontmatter.requireScore);
+      if (frontmatterRequireScore) chat.requireScore = frontmatterRequireScore;
+    }
+    if (!Object.keys(chat.requireScoreByHour || {}).length) {
+      const frontmatterRequireScoreByHour = normalizeRequireScoreByHour(parsed.frontmatter.requireScoreByHour);
+      if (Object.keys(frontmatterRequireScoreByHour).length) {
+        chat.requireScoreByHour = frontmatterRequireScoreByHour;
+      }
+    }
 
     validateMessages(parsed.messages, profiles, {
       profilePath,
@@ -427,6 +487,10 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
 
 function normalizeChat(chat, messages, profiles, selfId) {
   const out = { ...chat };
+  const requireScore = normalizeRequireScore(out.requireScore);
+  if (requireScore) out.requireScore = requireScore;
+  else delete out.requireScore;
+  out.requireScoreByHour = normalizeRequireScoreByHour(out.requireScoreByHour);
   const participants = Array.from(new Set(messages.map((m) => String(m.senderId))));
   const inferredType = participants.length > 2 ? "group" : "single";
   const type = out.type || inferredType;

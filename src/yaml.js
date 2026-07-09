@@ -27,6 +27,27 @@ function parseScalar(raw) {
   return v;
 }
 
+function findMappingColon(line) {
+  let quote = "";
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if ((ch === '"' || ch === "'") && line[i - 1] !== "\\") {
+      quote = quote === ch ? "" : (quote ? quote : ch);
+      continue;
+    }
+    if (ch === ":" && !quote) return i;
+  }
+  return -1;
+}
+
+function parseKey(raw) {
+  const key = raw.trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    return key.slice(1, -1);
+  }
+  return key;
+}
+
 /**
  * Parse a minimal YAML string into a plain JS object.
  * This lightweight parser supports nested objects, arrays and scalars used by this project.
@@ -71,10 +92,10 @@ export function parseSimpleYaml(input) {
       continue;
     }
 
-    const idx = line.indexOf(":");
+    const idx = findMappingColon(line);
     if (idx === -1) throw new Error(`Invalid YAML line ${i + 1}: ${line}`);
 
-    const key = line.slice(0, idx).trim();
+    const key = parseKey(line.slice(0, idx));
     const rest = line.slice(idx + 1).trim();
 
     if (rest === "|" || rest === ">") {

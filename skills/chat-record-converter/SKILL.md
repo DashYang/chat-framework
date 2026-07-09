@@ -60,6 +60,7 @@ description: 将原始聊天记录、朋友圈与文章素材转换为 chat-fram
 - 转发公众号文章 -> `[article]`，并把正文实体优先放入 `articles/*.md`
 - 用户名片/资料卡 -> `[contact-card]`
 - 系统提示、时间分割、验证提示、折叠提示 -> `[status]`
+- 恐怖提示、关键短句、需要文字突脸强调的内容 -> `[highlight]`
 - 引用关系明显 -> `[quote:<messageId>]`
 
 5. 会话配置生成
@@ -104,8 +105,9 @@ description: 将原始聊天记录、朋友圈与文章素材转换为 chat-fram
 - 该简写只用于纯文本消息；纯 URL 文本也可以使用，parser 会自动转为链接卡片。
 - 后续文本块由 parser 自动生成 message id，并按现有规则推导时间。
 - 如果某条消息需要显式 `#messageId`，必须为该消息单独写完整消息头。
-- 如果某条消息带任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[article]`、`[contact-card]`、`[status]`），必须为该消息单独写完整消息头。
+- 如果某条消息带任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[article]`、`[contact-card]`、`[status]`、`[highlight]`），必须为该消息单独写完整消息头。
 - `[status]` 用于原始记录中真实存在的系统状态提示；默认“当前聊天已结束”由渲染器自动追加，不需要手动生成。
+- `[highlight]` 用于关键短句的文字突脸效果，正文就是突脸文字；它是独立消息类型，不要和 `[image]`、`[link-card]`、`[article]`、`[contact-card]`、`[status]` 等内容型 tag 混用。
 - 如果需要在同一条纯文本消息里保留段落空行，使用完整消息头；简写中的空行表示下一条同发送者消息。
 - 正文中的 `@mention` 必须匹配当前会话 profiles 中的 profile id、`name`、`nickName`、`identityTimeline.name`，或当前账号的 `aliases.contacts` / `aliases.selfInGroups`。不确定对应哪个 profile 时先询问用户；不要生成无法匹配的 @ 文本，因为构建器会报错。
 

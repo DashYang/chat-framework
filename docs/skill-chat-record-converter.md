@@ -32,7 +32,7 @@ Skill 路径：
 1) 生成 chat.md、profiles.yml、chat.yml；若是多账号/多会话目录模式，生成 profiles/*.yml、必要的 group yml、ui.yml、story.yml
 2) 第一条消息使用绝对时间，后续优先相对时间
 3) 识别引用关系并使用 [quote:messageId]
-4) 若识别到图片、链接卡片、文章卡片、名片、系统状态提示，分别使用 [image] / [link-card] / [article] / [contact-card] / [status]
+4) 若识别到图片、链接卡片、文章卡片、名片、系统状态提示、关键突脸短句，分别使用 [image] / [link-card] / [article] / [contact-card] / [status] / [highlight]
 5) 若包含朋友圈或公众号文章，生成 profile.moments、profile.officialArticles 与 articles/*.md；已有项目全是 YAML 或我明确要求时才用 articles/*.yml
 6) 同一发送者连续纯文本消息优先省略重复 @senderId，用空行分隔为多条消息；带 id/tag 的消息仍写完整消息头
 7) 正文里的 @mention 必须使用可匹配的 profile id/name/nickName/identityTimeline/alias；不确定对应谁时先询问我
@@ -71,6 +71,7 @@ Skill 路径：
 - 引用是否只引用前文
 - 同一发送者连续纯文本是否优先使用简写；需要显式 `#messageId` 或 tag 的消息是否仍使用完整消息头
 - 原始记录中的系统提示、时间分割、验证提示、折叠提示是否使用 `[status]`；默认“当前聊天已结束”是否没有被重复手动生成
+- 恐怖提示、关键短句或需要突脸强调的内容是否使用 `[highlight]`，且没有和其他内容型 tag 混用
 - 需要在同一条文本消息里保留段落空行时，是否避免使用连续纯文本简写
 - `chat.yml` 的 `type/self/title/groupInfo.avatar` 是否完整（单聊无需 `peer`，群聊无需 `members/groupInfo.name`）
 - 单聊省略 `chat.yml` 时，标题是否能从联系人备注、对方显式 `profile.name` 或按当前阶段时间解析出的 `identityTimeline.name` 推断，不能只依赖 profile id / 文件名

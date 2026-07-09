@@ -76,7 +76,7 @@ specVersion: "1.0"
 ```
 
 - 头部语法：`@发送者 #消息ID [可选时间] [可选标签...]`
-- 标签：`[image]`、`[link-card]`、`[quote:消息ID]`、`[voice]`、`[recall]`、`[recall:+10s]`、`[article]`、`[contact-card]`、`[status]`
+- 标签：`[image]`、`[link-card]`、`[quote:消息ID]`、`[voice]`、`[recall]`、`[recall:+10s]`、`[article]`、`[contact-card]`、`[status]`、`[highlight]`
 - 时间：第一条必须绝对时间；后续可 `+30s/+2m/+1h/+1d`，也可省略（按消息字数自动推导秒数）
 - `#消息ID` 可省略（自动生成为 `m1/m2/...`）
 - 文本中的 `@mention` 会高亮显示，但必须匹配当前会话 profiles 中的 id、`name`、`nickName`、`identityTimeline.name` 或当前账号 aliases；写错会在构建时报错。`@` 可以贴着中文句子出现，例如 `今天有新同事@周正入职`。
@@ -86,6 +86,7 @@ specVersion: "1.0"
 - `[article]` 支持在聊天中转发文章卡片，推荐用 `id` 引用 `articles/` 目录中的文章
 - `[contact-card]` 支持在聊天中发送联系人名片（头像/姓名/昵称/bio）
 - `[status]` 支持居中的状态提示，显示效果与“当前聊天已结束”一致，例如“对方开启了朋友验证”
+- `[highlight]` 支持关键短句文字突脸效果，消息出现时自动播放一次，例如“有人在”
 - 点击聊天头像可查看 `profiles` 中的名字（`name` 为正式名称）和简介（`bio`）；当配置了 `identityTimeline` 时，系统以其按参考时间解析出的生效名称为准，不再使用顶层的 `profile.name`。`aliases.contacts` 中定义的备注名则用于聊天气泡上方、总览页预览及标题栏。
 - 总览页支持“发现 -> 朋友圈”，仅展示文字/图片，并按当前阶段小时过滤未来动态
 - 总览页支持“文章 -> 文章列表”，文章正文统一来自 `articles/` 目录；profile 仅保存文章 id 引用。新文章推荐使用 Markdown frontmatter（`.md`/`.markdown`），旧的 YAML article（`.yml`/`.yaml`）继续兼容；正文支持标题、段落、引用、列表、粗体/斜体、链接和图片

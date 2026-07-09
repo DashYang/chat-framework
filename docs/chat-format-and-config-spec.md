@@ -117,7 +117,7 @@ text block 2
 - 同一个 `@senderId` 头下面，**每个用空行分隔的文本块**都会被解析成一条独立消息
 - 该形式只适用于纯文本消息（包括纯 URL 文本，它仍会自动转为链接卡片）
 - 该形式允许第一条显式写时间；拆分后**只有第一段**继承这个时间，后续段落按现有规则自动推导时间
-- 如果某条消息需要 `#messageId`、或任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[status]`），则仍然必须为该消息单独写完整消息头
+- 如果某条消息需要 `#messageId`、或任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[status]`、`[highlight]`），则仍然必须为该消息单独写完整消息头
 - 在简化写法里，空行不再表示“同一条消息的分段”，而是表示“下一条同发送者消息”
 
 示例：
@@ -170,8 +170,11 @@ text block 2
 - `[article]`：微信文章转发卡片
 - `[contact-card]`：联系人名片
 - `[status]`：居中状态提示，正文为提示文案，样式与默认“当前聊天已结束”一致
+- `[highlight]`：关键短句文字突脸效果，正文为突脸文字，消息出现时自动播放一次
 - `[heartbeat:1]` / `[heartbeat:2]` / `[heartbeat:3]`：自动播放时将背景心跳声切换为对应节奏档位（1=慢、2=中、3=快）
 - `[heartbeat:end]`：恢复默认正常节奏心跳
+- `[choice]`：固定选项选择题，播放到该消息时暂停，用户只能从配置选项中选择
+- `[require-score:N]` / `[require-score:N:global]`：单句分数解锁，默认使用当前账号分数，`:global` 使用全局分数
 
 #### 文本消息（默认）
 
@@ -255,6 +258,45 @@ avatar: https://example.com/a.jpg
 bio: 社区民警
 ```
 
+#### 高亮突脸
+
+```md
+@alice #m12 [+10s] [highlight]
+有人在
+```
+
+说明：`[highlight]` 正文是要突脸显示的文字。消息出现时会自动播放一次全屏文字突脸效果；它是独立消息类型，不与 `[image]`、`[link-card]`、`[article]`、`[contact-card]`、`[status]` 等内容型标签混用。
+
+#### 固定选择
+
+```md
+@system #c1 [+1m] [choice]
+prompt: "你要怎么回复？"
+scope: account
+options:
+  trust:
+    label: "相信她"
+    score: 2
+  doubt:
+    label: "先保持怀疑"
+    score: 0
+```
+
+说明：
+- 用户界面只显示 `label`，不会展示 `score`
+- `scope: account` 表示分数加到当前账号；`scope: global` 表示整部故事共享分数
+- 同一个选择题只会加分一次；刷新或重进聊天会显示已选状态，不会重复加分
+
+#### 单句分数解锁
+
+```md
+@sister #m13 [+1m] [require-score:4]
+这句话只有当前账号分数达到 4 才显示。
+
+@admin #m14 [+1m] [require-score:8:global]
+这句话使用全局分数判断。
+```
+
 ### 2.5 文本增强效果
 
 - `@mention` 会高亮显示，但必须匹配当前会话 profiles 中的 profile id、`name`、`nickName`、`identityTimeline.name`，或当前账号的 `aliases.contacts` / `aliases.selfInGroups`。构建器会按名称长度降序匹配，所以 `今天有新同事@周正入职` 可正确高亮 `@周正`；若 `@` 后的名称无法匹配已知 profile，构建会报错。
@@ -328,6 +370,9 @@ profile:
       author: "@bob"
       text: "今天开了个好会"
       images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
+      requireScore:
+        score: 2
+        scope: account
 ```
 
 说明：
@@ -335,6 +380,7 @@ profile:
 - 未配置 `version` 时沿用旧存储 key，旧项目不会被动丢失进度
 - 朋友圈只支持文字和图片
 - `publishAt` 所在小时晚于当前阶段小时（由账号推进驱动）时不会显示
+- `requireScore` 可选；配置后还要求对应分数达标才显示，数字简写如 `requireScore: 2` 等价于 `score: 2, scope: account`
 - `author` 为可选字段；未填写时默认使用所属 profile 的当前生效 `name/avatar`
 - `author: "@<profileId>"` 可引用另一个 profile，渲染时会按当前阶段小时解析该 profile 的 `identityTimeline.name/avatar`
 - `author` 也可写成对象（如 `name/avatar/bio` 或 `refId/id/profileId`），对象引用同样会按当前阶段小时解析对应 profile
@@ -358,6 +404,9 @@ author: "公众号名称"
 cover: "https://example.com/cover.jpg"
 summary: "文章摘要（可选）"
 images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
+requireScore:
+  score: 2
+  scope: account
 ---
 
 正文第一段，支持 **粗体**、*斜体* 和 [链接](https://example.com)。
@@ -376,6 +425,9 @@ article:
   author: "公众号名称"
   cover: "https://example.com/cover.jpg"
   summary: "文章摘要（可选）"
+  requireScore:
+    score: 2
+    scope: account
   text: "文章正文（支持换行）"
   images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
 ```
@@ -387,6 +439,7 @@ article:
 - 如果 Markdown 文章没有 frontmatter，会取第一个 H1 作为标题，否则使用文件名 id；其他元信息可为空
 - 文章正文由 `markdown-it` 在构建期渲染，支持常见 Markdown/GFM 表格与删除线；原始 HTML 默认禁用，会作为文本显示
 - 仅展示 `publishAt` 所在小时 `<= 当前阶段小时` 的文章
+- `requireScore` 可选；配置后还要求对应分数达标才显示，数字简写默认使用当前账号分数
 - 支持文字+图片
 
 ## 4. chat.yml 规范
@@ -408,6 +461,13 @@ chat:
   type: "single"
   self: "alice"
   title: "Bob"
+  requireScore:
+    score: 2
+    scope: account
+  requireScoreByHour:
+    "2026-04-28 14:00":
+      score: 4
+      scope: account
 ```
 
 字段说明：
@@ -419,6 +479,9 @@ chat:
 - 单聊标题不会回退到 profile id / 文件名；若未配置 `chat.title`，则必须能从当前账号 `aliases.contacts.<peerId>`、对方 `profile.name` 或按当前阶段时间解析出的 `identityTimeline.name` 推断，否则构建失败
 - 单聊不需要配置 `peer`（自动由消息参与者推断）
 - 群聊不需要配置 `members`，`groupInfo.name` 也不需要（直接使用 `title`）
+- `requireScore` 可选；配置后隐藏整个会话入口，直到对应分数达标
+- `requireScoreByHour` 可选；按阶段小时隐藏该小时新增消息，历史消息仍可显示
+- 聊天解锁优先级为：会话级 `requireScore` → 小时级 `requireScoreByHour` → 单句 `[require-score]`
 
 ### 4.3 profile 中声明会话文件（推荐）
 
@@ -490,6 +553,8 @@ story:
 
 - 会话列表中，当前小时有“可自动播放但未播放完”的消息时，会话项显示小红点。
 - 播放完当前小时内容后，该会话红点消失。
+- 未达到 `requireScore` 的会话、小时消息、单句消息、文章和朋友圈不产生红点，也不阻塞阶段推进。
+- 达分后新解锁的历史内容会显示在对应列表或聊天记录中，但不会回退已经推进过的阶段。
 
 ## 6. 完整示例
 
