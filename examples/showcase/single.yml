@@ -1,6 +1,6 @@
 chat:
   type: "single"
   self: "protagonist"
-  requireScore:
+  require:
     score: 2
     scope: account

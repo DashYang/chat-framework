@@ -936,7 +936,7 @@ export function renderWechatHubHtml(input) {
     let stageIndexMap = {};
     let unlockedAccounts = {};
     let accountNoticeMap = {};
-    let scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
+    let scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
     let stageIndex = 0;
     let timelineStages = [];
     let activeAccountId = "";
@@ -1092,7 +1092,7 @@ export function renderWechatHubHtml(input) {
         const moments = user.moments || {};
         for (const moment of Object.values(moments)) {
           if (!moment) continue;
-          if (!isScoreUnlocked(moment.requireScore)) continue;
+          if (!isRequireUnlocked(moment.require)) continue;
           const publishRaw = moment.publishAt || moment.time || "";
           const momentKey = activeAccountId + "|" + (moment.id || publishRaw);
           if (seen.has(momentKey)) continue;
@@ -1344,7 +1344,7 @@ export function renderWechatHubHtml(input) {
           if (seen.has(key)) continue;
           const item = repo[key];
           if (!item) continue;
-          if (!isScoreUnlocked(item.requireScore)) continue;
+          if (!isRequireUnlocked(item.require)) continue;
           const publishRaw = item.publishAt || item.time || "";
           const day = toStageKey(publishRaw);
           if (!day || day > stageKey) continue;
@@ -1472,8 +1472,9 @@ export function renderWechatHubHtml(input) {
           }
           unlockedAccounts = parsed.unlockedAccounts || {};
           accountNoticeMap = parsed.accountNoticeMap || {};
-          scoreState = parsed.scoreState || { global: { score: 0 }, accounts: {}, choices: {} };
+          scoreState = parsed.scoreState || { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
           if (!scoreState.global) scoreState.global = { score: 0 };
+          scoreState.flags = normalizeFlagList(scoreState.flags);
           if (!scoreState.accounts) scoreState.accounts = {};
           if (!scoreState.choices) scoreState.choices = {};
           stageIndex = Number(parsed.stageIndex || 0);
@@ -1486,7 +1487,7 @@ export function renderWechatHubHtml(input) {
           stageIndexMap = {};
           unlockedAccounts = {};
           accountNoticeMap = {};
-          scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
+          scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
           stageIndex = 0;
         }
       } catch (_) {
@@ -1497,7 +1498,7 @@ export function renderWechatHubHtml(input) {
         stageIndexMap = {};
         unlockedAccounts = {};
         accountNoticeMap = {};
-        scoreState = { global: { score: 0 }, accounts: {}, choices: {} };
+        scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
         stageIndex = 0;
       }
     }
@@ -1551,19 +1552,47 @@ export function renderWechatHubHtml(input) {
       return accountKey() + "|" + key;
     }
 
-    function normalizeScoreRule(rule) {
+    function normalizeRequireRule(rule) {
       if (rule === undefined || rule === null || rule === "") return null;
-      if (typeof rule === "number") return Number.isFinite(rule) ? { score: rule, scope: "account" } : null;
-      if (typeof rule === "string") {
-        const score = Number(rule.trim());
-        return Number.isFinite(score) ? { score, scope: "account" } : null;
-      }
       if (typeof rule === "object" && !Array.isArray(rule)) {
-        const score = Number(rule.score);
-        if (!Number.isFinite(score)) return null;
-        return { score, scope: String(rule.scope || "account") === "global" ? "global" : "account" };
+        const hasScore = rule.score !== undefined && rule.score !== null;
+        const flags = normalizeFlagList(rule.flags ?? rule.flag);
+        if (!hasScore && !flags.length) return null;
+        const result = { scope: String(rule.scope || "account") === "global" ? "global" : "account" };
+        if (hasScore) {
+          const score = Number(rule.score);
+          if (!Number.isFinite(score)) return null;
+          result.score = score;
+        }
+        if (flags.length) result.flags = flags;
+        return result;
       }
       return null;
+    }
+
+    function normalizeFlagList(...sources) {
+      const out = [];
+      for (const source of sources) {
+        if (!source) continue;
+        if (Array.isArray(source)) {
+          for (const item of source) {
+            const name = String(item || "").trim();
+            if (name && !out.includes(name)) out.push(name);
+          }
+          continue;
+        }
+        if (typeof source === "object") {
+          for (const [key, value] of Object.entries(source)) {
+            if (!value) continue;
+            const name = String(key || "").trim();
+            if (name && !out.includes(name)) out.push(name);
+          }
+          continue;
+        }
+        const name = String(source || "").trim();
+        if (name && !out.includes(name)) out.push(name);
+      }
+      return out;
     }
 
     function accountScoreBucket() {
@@ -1577,10 +1606,25 @@ export function renderWechatHubHtml(input) {
       return Number(accountScoreBucket().score || 0);
     }
 
-    function isScoreUnlocked(rule) {
-      const normalized = normalizeScoreRule(rule);
+    function isRequireUnlocked(rule) {
+      const normalized = normalizeRequireRule(rule);
       if (!normalized) return true;
-      return currentScore(normalized.scope) >= normalized.score;
+      if (normalized.score !== undefined && currentScore(normalized.scope) < normalized.score) return false;
+      if (normalized.flags?.some((flag) => !hasFlag(flag))) return false;
+      return true;
+    }
+
+    function hasFlag(flagId) {
+      if (!flagId) return false;
+      return normalizeFlagList(scoreState.flags).includes(String(flagId).trim());
+    }
+
+    function addFlags(flags) {
+      const existing = normalizeFlagList(scoreState.flags);
+      for (const name of normalizeFlagList(flags)) {
+        if (!existing.includes(name)) existing.push(name);
+      }
+      scoreState.flags = existing;
     }
 
     function addScore(scope, delta) {
@@ -1605,8 +1649,8 @@ export function renderWechatHubHtml(input) {
       return scoreState.choices?.[choiceStateKey(conversationId, msg?.id || "", scope)] || "";
     }
 
-    function hourScoreRule(conv, day) {
-      const rules = conv?.chat?.requireScoreByHour || {};
+    function hourRequireRule(conv, day) {
+      const rules = conv?.chat?.requireByHour || {};
       return rules[day] || rules[String(day || "").slice(0, 13) + ":00"] || null;
     }
 
@@ -1675,14 +1719,14 @@ export function renderWechatHubHtml(input) {
       const units = new Map();
       for (const conv of (payload.conversations || [])) {
         if (!conversationMatchesAccount(conv, accountId)) continue;
-        if (!isScoreUnlocked(conv.chat?.requireScore)) continue;
+        if (!isRequireUnlocked(conv.chat?.require)) continue;
 
         const messageDays = new Set();
         for (const msg of (conv.messages || [])) {
           const day = toStageKey(msg.timestamp || msg.timeText || "");
           if (!day) continue;
-          if (!isScoreUnlocked(hourScoreRule(conv, day))) continue;
-          if (!isScoreUnlocked(msg.requireScore)) continue;
+          if (!isRequireUnlocked(hourRequireRule(conv, day))) continue;
+          if (!isRequireUnlocked(msg.require)) continue;
           if (day) messageDays.add(day);
         }
         for (const day of messageDays) {
@@ -1696,7 +1740,7 @@ export function renderWechatHubHtml(input) {
         for (const refId of articleRefsForUser(selfUser)) {
           const item = repo[String(refId)];
           const day = toStageKey(item?.publishAt || item?.time || "");
-          if (!isScoreUnlocked(item?.requireScore)) continue;
+          if (!isRequireUnlocked(item?.require)) continue;
           if (day) units.set("article|" + String(refId), { type: "article", day });
         }
 
@@ -1707,7 +1751,7 @@ export function renderWechatHubHtml(input) {
             const publishRaw = moment?.publishAt || moment?.time || "";
             const day = toStageKey(publishRaw);
             if (!day) continue;
-            if (!isScoreUnlocked(moment?.requireScore)) continue;
+            if (!isRequireUnlocked(moment?.require)) continue;
             units.set("moment|" + accountId + "|" + (moment.id || publishRaw), { type: "moment", day });
           }
         }
@@ -1840,14 +1884,14 @@ export function renderWechatHubHtml(input) {
       updateStatusProgress(accountView.style.display === 'flex' ? "accounts" : undefined);
     }
     function isVisibleByConversationScore(conv) {
-      return isScoreUnlocked(conv?.chat?.requireScore);
+      return isRequireUnlocked(conv?.chat?.require);
     }
     function isVisibleMessageAtDay(conv, msg, day) {
       if (!isVisibleByAccount(conv) || !isVisibleByConversationScore(conv)) return false;
       const msgDay = toStageKey(msg?.timestamp || msg?.timeText || "");
       if (!msgDay || msgDay > day) return false;
-      if (!isScoreUnlocked(hourScoreRule(conv, msgDay))) return false;
-      if (!isScoreUnlocked(msg?.requireScore)) return false;
+      if (!isRequireUnlocked(hourRequireRule(conv, msgDay))) return false;
+      if (!isRequireUnlocked(msg?.require)) return false;
       return true;
     }
     function visibleMessagesUntil(conv, day) {
@@ -2410,7 +2454,11 @@ ${highlightEffectRuntimeSource()}
       if (!option) return;
       scoreState.choices[key] = option.id;
       addScore(choice.scope || "account", option.score || 0);
+      addFlags(option.flags ?? option.flag);
       refreshTimelineStagesPreserveCurrent();
+      if (activePlayback?.conversationId === conversationId && typeof activePlayback.refreshStageMessages === "function") {
+        activePlayback.refreshStageMessages(messageId);
+      }
       saveSeen();
       const node = timeline.querySelector('article[data-cid="' + esc(conversationId) + '"][data-mid="' + esc(messageId) + '"]');
       if (node) {
@@ -2517,7 +2565,7 @@ ${highlightEffectRuntimeSource()}
       const stageMs = currentStageMs();
       const stageSeen = getStageSeen(stageMs);
       const prevStageMs = stageIndex > 0 ? timelineStages[stageIndex - 1] : "";
-      const stageMessages = visibleMessagesUntil(conv, stageMs);
+      let stageMessages = visibleMessagesUntil(conv, stageMs);
       const oldMessages = prevStageMs
         ? visibleMessagesUntil(conv, prevStageMs)
         : [];
@@ -2552,7 +2600,19 @@ ${highlightEffectRuntimeSource()}
         stageMessages,
         current: oldMessages.length,
         finished: false,
-        playNext: null
+        playNext: null,
+        refreshStageMessages(afterMessageId) {
+          const refreshed = visibleMessagesUntil(conv, currentStageMs());
+          const previousCurrent = Number(playback.current || 0);
+          const anchorIndex = afterMessageId
+            ? refreshed.findIndex((m) => String(m.id || "") === String(afterMessageId))
+            : -1;
+          stageMessages = refreshed;
+          playback.stageMessages = refreshed;
+          playback.current = anchorIndex === -1
+            ? Math.min(previousCurrent, refreshed.length)
+            : Math.max(previousCurrent, anchorIndex + 1);
+        }
       };
       activePlayback = playback;
 

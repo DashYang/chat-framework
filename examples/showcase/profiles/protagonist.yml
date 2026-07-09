@@ -20,7 +20,7 @@ profile:
       publishAt: "2026-04-28 09:20:00"
       text: "把功能预览页固化到 examples/showcase，后续每次发版先跑一遍。"
       images: ["https://picsum.photos/seed/moment-protagonist-1/300/300"]
-      requireScore:
+      require:
         score: 2
         scope: account
     p2:

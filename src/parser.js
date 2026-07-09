@@ -118,7 +118,11 @@ function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tag
   }
   const requireScoreTag = tags.find((t) => t.startsWith("require-score:"));
   if (requireScoreTag) {
-    msg.requireScore = parseRequireScoreTag(requireScoreTag);
+    msg.require = { ...(msg.require || {}), ...parseRequireScoreTag(requireScoreTag) };
+  }
+  const requireFlagTag = tags.find((t) => t.startsWith("require-flag:"));
+  if (requireFlagTag) {
+    msg.require = { ...(msg.require || {}), ...parseRequireFlagTag(requireFlagTag) };
   }
 
   drafts.push(enrichAutoLinkCard(msg));
@@ -278,10 +282,12 @@ function toChoice(body) {
     const label = String(row.label || "").trim();
     if (!label) throw new Error(`[choice] option "${id}" requires label`);
     const score = Number(row.score || 0);
+    const flags = normalizeFlags(row.flags ?? row.flag);
     return {
       id: String(id),
       label,
-      score: Number.isFinite(score) ? score : 0
+      score: Number.isFinite(score) ? score : 0,
+      ...(flags.length ? { flags } : {})
     };
   });
   if (options.length < 2) throw new Error("[choice] requires at least two options");
@@ -297,6 +303,18 @@ function parseRequireScoreTag(tag) {
     score,
     scope: normalizeScoreScope(parts[1])
   };
+}
+
+function normalizeFlags(raw) {
+  const list = Array.isArray(raw) ? raw : [raw];
+  return Array.from(new Set(list.map((x) => String(x || "").trim()).filter(Boolean)));
+}
+
+function parseRequireFlagTag(tag) {
+  const raw = tag.slice("require-flag:".length).trim();
+  const flag = raw.split(":")[0]?.trim();
+  if (!flag) throw new Error(`[require-flag] missing flag name`);
+  return { flags: [flag] };
 }
 
 /**

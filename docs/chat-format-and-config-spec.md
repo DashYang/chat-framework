@@ -175,6 +175,7 @@ text block 2
 - `[heartbeat:end]`：恢复默认正常节奏心跳
 - `[choice]`：固定选项选择题，播放到该消息时暂停，用户只能从配置选项中选择
 - `[require-score:N]` / `[require-score:N:global]`：单句分数解锁，默认使用当前账号分数，`:global` 使用全局分数
+- `[require-flag:<name>]`：单句标记解锁，检查全局 flags（不区分 scope），可与 `[require-score]` 同时使用
 
 #### 文本消息（默认）
 
@@ -285,6 +286,7 @@ options:
 说明：
 - 用户界面只显示 `label`，不会展示 `score`
 - `scope: account` 表示分数加到当前账号；`scope: global` 表示整部故事共享分数
+- `flag` / `flags` 可选，选择后获得全局唯一标记，用于联动解锁其他内容
 - 同一个选择题只会加分一次；刷新或重进聊天会显示已选状态，不会重复加分
 
 #### 单句分数解锁
@@ -296,6 +298,17 @@ options:
 @admin #m14 [+1m] [require-score:8:global]
 这句话使用全局分数判断。
 ```
+
+#### 单句标记解锁
+
+```md
+@system #m15 [+1m] [require-flag:trusted_sister]
+这句话只有在获得 trusted_sister 标记后才显示。
+```
+
+说明：
+- `[require-flag]` 检查的是全局 flags，不区分账号 scope
+- 可与 `[require-score]` 同时使用，两者都满足才显示
 
 ### 2.5 文本增强效果
 
@@ -370,7 +383,7 @@ profile:
       author: "@bob"
       text: "今天开了个好会"
       images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
-      requireScore:
+      require:
         score: 2
         scope: account
 ```
@@ -380,7 +393,7 @@ profile:
 - 未配置 `version` 时沿用旧存储 key，旧项目不会被动丢失进度
 - 朋友圈只支持文字和图片
 - `publishAt` 所在小时晚于当前阶段小时（由账号推进驱动）时不会显示
-- `requireScore` 可选；配置后还要求对应分数达标才显示，数字简写如 `requireScore: 2` 等价于 `score: 2, scope: account`
+- `require` 可选；配置后还要求对应分数和/或标记达标才显示。支持 `score`、`flag` / `flags` 字段（全局标记）
 - `author` 为可选字段；未填写时默认使用所属 profile 的当前生效 `name/avatar`
 - `author: "@<profileId>"` 可引用另一个 profile，渲染时会按当前阶段小时解析该 profile 的 `identityTimeline.name/avatar`
 - `author` 也可写成对象（如 `name/avatar/bio` 或 `refId/id/profileId`），对象引用同样会按当前阶段小时解析对应 profile
@@ -404,7 +417,7 @@ author: "公众号名称"
 cover: "https://example.com/cover.jpg"
 summary: "文章摘要（可选）"
 images: ["https://example.com/1.jpg", "https://example.com/2.jpg"]
-requireScore:
+require:
   score: 2
   scope: account
 ---
@@ -425,7 +438,7 @@ article:
   author: "公众号名称"
   cover: "https://example.com/cover.jpg"
   summary: "文章摘要（可选）"
-  requireScore:
+  require:
     score: 2
     scope: account
   text: "文章正文（支持换行）"
@@ -439,7 +452,7 @@ article:
 - 如果 Markdown 文章没有 frontmatter，会取第一个 H1 作为标题，否则使用文件名 id；其他元信息可为空
 - 文章正文由 `markdown-it` 在构建期渲染，支持常见 Markdown/GFM 表格与删除线；原始 HTML 默认禁用，会作为文本显示
 - 仅展示 `publishAt` 所在小时 `<= 当前阶段小时` 的文章
-- `requireScore` 可选；配置后还要求对应分数达标才显示，数字简写默认使用当前账号分数
+- `require` 可选；配置后还要求对应分数和/或标记达标才显示，默认使用当前账号分数。支持 `flag` / `flags` 字段（全局标记）
 - 支持文字+图片
 
 ## 4. chat.yml 规范
@@ -461,13 +474,17 @@ chat:
   type: "single"
   self: "alice"
   title: "Bob"
-  requireScore:
+  require:
     score: 2
+    flags:
+      - trusted_sister
     scope: account
-  requireScoreByHour:
+  requireByHour:
     "2026-04-28 14:00":
       score: 4
       scope: account
+    "2026-04-29 09:00":
+      flag: "met_admin"
 ```
 
 字段说明：
@@ -479,9 +496,9 @@ chat:
 - 单聊标题不会回退到 profile id / 文件名；若未配置 `chat.title`，则必须能从当前账号 `aliases.contacts.<peerId>`、对方 `profile.name` 或按当前阶段时间解析出的 `identityTimeline.name` 推断，否则构建失败
 - 单聊不需要配置 `peer`（自动由消息参与者推断）
 - 群聊不需要配置 `members`，`groupInfo.name` 也不需要（直接使用 `title`）
-- `requireScore` 可选；配置后隐藏整个会话入口，直到对应分数达标
-- `requireScoreByHour` 可选；按阶段小时隐藏该小时新增消息，历史消息仍可显示
-- 聊天解锁优先级为：会话级 `requireScore` → 小时级 `requireScoreByHour` → 单句 `[require-score]`
+- `require` 可选；配置后隐藏整个会话入口，直到对应分数和/或标记达标。支持 `score`、`flag` / `flags` 或两者同时配置（AND 关系）。flags 为全局标记，不区分 account/global
+- `requireByHour` 可选；按阶段小时隐藏该小时新增消息，历史消息仍可显示
+- 聊天解锁优先级为：会话级 `require` → 小时级 `requireByHour` → 单句 `[require-score]` / `[require-flag]`
 
 ### 4.3 profile 中声明会话文件（推荐）
 
@@ -553,7 +570,7 @@ story:
 
 - 会话列表中，当前小时有“可自动播放但未播放完”的消息时，会话项显示小红点。
 - 播放完当前小时内容后，该会话红点消失。
-- 未达到 `requireScore` 的会话、小时消息、单句消息、文章和朋友圈不产生红点，也不阻塞阶段推进。
+- 未达到 `require` 的会话、小时消息、单句消息、文章和朋友圈不产生红点，也不阻塞阶段推进。
 - 达分后新解锁的历史内容会显示在对应列表或聊天记录中，但不会回退已经推进过的阶段。
 
 ## 6. 完整示例
