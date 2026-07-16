@@ -343,7 +343,9 @@ function normalizeUi(ui) {
  */
 export function renderWechatHubHtml(input) {
   const ui = normalizeUi(input.ui);
-  const appTitle = input.title || "微信";
+  const story = input.story || {};
+  const appTitle = story.title || input.title || "微信";
+  const favicon = typeof story.favicon === "string" ? story.favicon.trim() : "";
   const payload = safeJson({
     title: appTitle,
     conversations: input.conversations || [],
@@ -357,6 +359,7 @@ export function renderWechatHubHtml(input) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(appTitle)}</title>
+  ${favicon ? `<link rel="icon" href="${escapeHtml(favicon)}" />` : ""}
   <style>
     :root {
       --bg: #efefef;
@@ -573,6 +576,17 @@ export function renderWechatHubHtml(input) {
     .account-avatar { width:52px; height:52px; border-radius:6px; object-fit:cover; background:#ddd; }
     .account-name { font-size:16px; color:#222; line-height:1.2; }
     .account-current { margin-left:auto; font-size:14px; color:#07c160; white-space:nowrap; }
+    .bad-ending-overlay { position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; pointer-events:none; background:#fff; opacity:0; visibility:hidden; transition:opacity .22s ease, visibility .22s ease; }
+    .bad-ending-overlay.show { opacity:1; visibility:visible; pointer-events:auto; }
+    .bad-ending-screen { width:min(86vw, 430px); height:min(72vh, 720px); background:#101010; box-shadow:0 0 0 9999px #fff; transform:scale(1); transition:transform .62s cubic-bezier(.65,0,.35,1), opacity .62s ease; }
+    .bad-ending-overlay.show .bad-ending-screen { animation:bad-ending-shutdown 1.15s ease-in forwards; }
+    @keyframes bad-ending-shutdown { 0% { opacity:0; transform:scale(1); } 12% { opacity:1; } 34% { transform:scale(1.01, .025); } 72% { opacity:1; transform:scale(.03, .012); } 100% { opacity:0; transform:scale(0, 0); } }
+    .true-ending-confirm { position:fixed; inset:0; z-index:91; display:none; align-items:center; justify-content:center; padding:22px; background:rgba(0,0,0,.42); }
+    .true-ending-confirm.show { display:flex; }
+    .true-ending-confirm-card { width:min(320px,100%); border-radius:12px; background:#fff; box-shadow:0 18px 48px rgba(0,0,0,.22); overflow:hidden; }
+    .true-ending-confirm-body { padding:24px 20px 18px; text-align:center; }
+    .true-ending-confirm-text { margin:0; color:#222; font-size:16px; line-height:1.6; white-space:pre-wrap; }
+    .true-ending-confirm-btn { width:100%; border:0; border-top:1px solid var(--line); background:#fff; color:#07c160; padding:13px 12px; font-size:16px; cursor:pointer; }
     .account-reset { width:100%; border:none; background:#fff; border-radius:10px; padding:14px 12px; margin-top:10px; text-align:center; cursor:pointer; color:#d93025; font-size:16px; }
     .unlock-toast { position:absolute; left:14px; right:14px; top:34px; z-index:75; min-height:38px; padding:9px 12px; border-radius:8px; background:rgba(255,255,255,.96); color:#222; box-shadow:0 8px 24px rgba(0,0,0,.16); border:1px solid rgba(0,0,0,.08); display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1.35; opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
     .unlock-toast.show { opacity:1; transform:translateY(0); }
@@ -586,6 +600,8 @@ export function renderWechatHubHtml(input) {
     .reset-confirm-btn { border:none; background:#fff; padding:13px 8px; color:#222; font-size:16px; cursor:pointer; }
     .reset-confirm-btn + .reset-confirm-btn { border-left:1px solid var(--line); }
     .reset-confirm-danger { color:#d93025; font-weight:700; }
+    .reset-confirm-btn:disabled { color:#aaa; cursor:not-allowed; font-weight:400; }
+    .skip-confirm { z-index:92; }
     .detail-view {
       display: none;
       flex-direction: column;
@@ -758,6 +774,12 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .account-center { color:var(--text); }
     [data-theme="iterms"] .account-card { background:#0d1117; border:1px solid #142018; color:var(--text); }
     [data-theme="iterms"] .account-card.active { background:#0d1a12; border-color:var(--accent); box-shadow:inset 0 0 0 1px rgba(0,255,65,.35), 0 0 8px rgba(0,255,65,.12); }
+    [data-theme="iterms"] .bad-ending-overlay { background:#020302; }
+    [data-theme="iterms"] .bad-ending-screen { background:#b8ffbd; box-shadow:0 0 0 9999px #020302; }
+    [data-theme="iterms"] .true-ending-confirm { background:rgba(0,0,0,.7); }
+    [data-theme="iterms"] .true-ending-confirm-card { background:#0d1117; border:1px solid var(--accent); border-radius:2px; box-shadow:0 0 18px rgba(0,255,65,.18); }
+    [data-theme="iterms"] .true-ending-confirm-text { color:var(--text); }
+    [data-theme="iterms"] .true-ending-confirm-btn { background:#0d1117; border-color:var(--line); color:var(--accent); }
     [data-theme="iterms"] .account-card:hover { background:#0d1a12; }
     [data-theme="iterms"] .account-name { color:var(--text); }
     [data-theme="iterms"] .account-current { color:var(--accent); }
@@ -772,6 +794,7 @@ export function renderWechatHubHtml(input) {
     [data-theme="iterms"] .reset-confirm-btn { background:#0d1117; color:var(--text); }
     [data-theme="iterms"] .reset-confirm-btn + .reset-confirm-btn { border-color:#14351f; }
     [data-theme="iterms"] .reset-confirm-danger { color:#ff5b52; }
+    [data-theme="iterms"] .reset-confirm-btn:disabled { color:#5f7564; }
     [data-theme="iterms"] .contacts-empty { color:var(--muted); }
     [data-theme="iterms"] .moments-empty { color:var(--muted); }
     [data-theme="iterms"] .article-page-text blockquote { color:#a8d8b0; }
@@ -833,7 +856,7 @@ export function renderWechatHubHtml(input) {
         <div class="center-title">${escapeHtml(ui.topTitle)}</div>
         <div></div>
       </header>
-      <div class="account-center">轻触头像以切换账号</div>
+      <div id="account-progress" class="account-center">轻触头像以切换账号</div>
       <div id="account-list-wrap" class="account-list-wrap"></div>
     </section>
   </main>
@@ -870,13 +893,32 @@ export function renderWechatHubHtml(input) {
   <aside id="reset-confirm" class="reset-confirm" aria-hidden="true">
     <div class="reset-confirm-card" role="dialog" aria-modal="true" aria-labelledby="reset-confirm-title">
       <div class="reset-confirm-body">
-        <p id="reset-confirm-title" class="reset-confirm-title">确定要重置阅读进度吗？</p>
-        <p class="reset-confirm-text">内容文件不会受影响。</p>
+        <p id="reset-confirm-title" class="reset-confirm-title">饮用孟婆汤忘却旧事</p>
+        <p id="reset-confirm-text" class="reset-confirm-text">将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。</p>
       </div>
       <div class="reset-confirm-actions">
         <button id="reset-cancel" class="reset-confirm-btn" type="button">取消</button>
-        <button id="reset-confirm-btn" class="reset-confirm-btn reset-confirm-danger" type="button">重置</button>
+        <button id="reset-confirm-btn" class="reset-confirm-btn reset-confirm-danger" type="button">饮用</button>
       </div>
+    </div>
+  </aside>
+  <aside id="skip-confirm" class="reset-confirm skip-confirm" aria-hidden="true">
+    <div class="reset-confirm-card" role="dialog" aria-modal="true" aria-labelledby="skip-confirm-title" aria-describedby="skip-confirm-text">
+      <div class="reset-confirm-body">
+        <p id="skip-confirm-title" class="reset-confirm-title">是否跳过对话？</p>
+        <p id="skip-confirm-text" class="reset-confirm-text">跳过后，剩余消息将视为已播放。</p>
+      </div>
+      <div class="reset-confirm-actions">
+        <button id="skip-cancel" class="reset-confirm-btn" type="button">继续对话</button>
+        <button id="skip-confirm-btn" class="reset-confirm-btn reset-confirm-danger" type="button">跳过对话</button>
+      </div>
+    </div>
+  </aside>
+  <aside id="bad-ending-overlay" class="bad-ending-overlay" aria-hidden="true"><div class="bad-ending-screen"></div></aside>
+  <aside id="true-ending-confirm" class="true-ending-confirm" aria-hidden="true">
+    <div class="true-ending-confirm-card" role="dialog" aria-modal="true" aria-labelledby="true-ending-confirm-text">
+      <div class="true-ending-confirm-body"><p id="true-ending-confirm-text" class="true-ending-confirm-text"></p></div>
+      <button id="true-ending-confirm-btn" class="true-ending-confirm-btn" type="button">继续</button>
     </div>
   </aside>
 
@@ -920,9 +962,20 @@ export function renderWechatHubHtml(input) {
     const articleText = document.getElementById('article-text');
     const articleImages = document.getElementById('article-images');
     const resetConfirm = document.getElementById('reset-confirm');
+    const resetConfirmTitle = document.getElementById('reset-confirm-title');
+    const resetConfirmText = document.getElementById('reset-confirm-text');
     const resetCancel = document.getElementById('reset-cancel');
     const resetConfirmBtn = document.getElementById('reset-confirm-btn');
+    const skipConfirm = document.getElementById('skip-confirm');
+    const skipConfirmText = document.getElementById('skip-confirm-text');
+    const skipCancel = document.getElementById('skip-cancel');
+    const skipConfirmBtn = document.getElementById('skip-confirm-btn');
+    const badEndingOverlay = document.getElementById('bad-ending-overlay');
+    const trueEndingConfirm = document.getElementById('true-ending-confirm');
+    const trueEndingConfirmText = document.getElementById('true-ending-confirm-text');
+    const trueEndingConfirmBtn = document.getElementById('true-ending-confirm-btn');
     const accountBack = document.getElementById('account-back');
+    const accountProgress = document.getElementById('account-progress');
     const accountListWrap = document.getElementById('account-list-wrap');
     const unlockToast = document.getElementById('unlock-toast');
 
@@ -931,11 +984,15 @@ export function renderWechatHubHtml(input) {
     let recallTimers = [];
     let seenMap = {};
     let stageSeenMap = {};
+    let messagePlayedMap = {};
     let momentSeenMap = {};
     let articleSeenMap = {};
     let stageIndexMap = {};
     let unlockedAccounts = {};
     let accountNoticeMap = {};
+    let badEndingHandled = {};
+    let trueEndingHandled = {};
+    let trueEndingPending = {};
     let scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
     let stageIndex = 0;
     let timelineStages = [];
@@ -949,6 +1006,9 @@ export function renderWechatHubHtml(input) {
     let momentObserver = null;
     let momentReadTimers = new Map();
     let unlockToastTimer = null;
+    let badEndingInProgress = false;
+    let trueEndingInProgress = false;
+    let pendingConversationExit = null;
     const debugState = { enabled: payload.ui?.debug === true };
 
     ${HEARTBEAT_ENGINE_JS}
@@ -1174,7 +1234,7 @@ export function renderWechatHubHtml(input) {
     function renderMoments() {
       const rows = collectMoments();
       if (!rows.length) {
-        momentsScroll.innerHTML = '<div class="moments-empty">当前时间下暂无可展示的朋友圈</div>';
+        momentsScroll.innerHTML = '<div class="moments-empty">当前时间下暂无可展示的社交内容</div>';
         return;
       }
       momentsScroll.innerHTML = rows.map((m) => {
@@ -1402,6 +1462,7 @@ export function renderWechatHubHtml(input) {
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
+      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
@@ -1429,6 +1490,7 @@ export function renderWechatHubHtml(input) {
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
+      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
@@ -1464,6 +1526,7 @@ export function renderWechatHubHtml(input) {
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed.conversationSeen || parsed.stageSeen || typeof parsed.stageIndex === 'number')) {
           seenMap = parsed.conversationSeen || {};
           stageSeenMap = parsed.stageSeen || {};
+          messagePlayedMap = parsed.messagePlayed || {};
           momentSeenMap = parsed.momentSeen || {};
           articleSeenMap = parsed.articleSeen || {};
           stageIndexMap = parsed.stageIndexMap || {};
@@ -1472,6 +1535,9 @@ export function renderWechatHubHtml(input) {
           }
           unlockedAccounts = parsed.unlockedAccounts || {};
           accountNoticeMap = parsed.accountNoticeMap || {};
+          badEndingHandled = parsed.badEndingHandled || {};
+          trueEndingHandled = parsed.trueEndingHandled || {};
+          trueEndingPending = parsed.trueEndingPending || {};
           scoreState = parsed.scoreState || { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
           if (!scoreState.global) scoreState.global = { score: 0 };
           scoreState.flags = normalizeFlagList(scoreState.flags);
@@ -1482,22 +1548,30 @@ export function renderWechatHubHtml(input) {
         } else {
           seenMap = parsed && typeof parsed === 'object' ? parsed : {};
           stageSeenMap = {};
+          messagePlayedMap = {};
           momentSeenMap = {};
           articleSeenMap = {};
           stageIndexMap = {};
           unlockedAccounts = {};
           accountNoticeMap = {};
+          badEndingHandled = {};
+          trueEndingHandled = {};
+          trueEndingPending = {};
           scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
           stageIndex = 0;
         }
       } catch (_) {
         seenMap = {};
         stageSeenMap = {};
+        messagePlayedMap = {};
         momentSeenMap = {};
         articleSeenMap = {};
         stageIndexMap = {};
         unlockedAccounts = {};
         accountNoticeMap = {};
+        badEndingHandled = {};
+        trueEndingHandled = {};
+        trueEndingPending = {};
         scoreState = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
         stageIndex = 0;
       }
@@ -1508,11 +1582,15 @@ export function renderWechatHubHtml(input) {
         localStorage.setItem(persistKey, JSON.stringify({
           conversationSeen: seenMap,
           stageSeen: stageSeenMap,
+          messagePlayed: messagePlayedMap,
           momentSeen: momentSeenMap,
           articleSeen: articleSeenMap,
           stageIndexMap,
           unlockedAccounts,
           accountNoticeMap,
+          badEndingHandled,
+          trueEndingHandled,
+          trueEndingPending,
           scoreState,
           stageIndex,
           activeAccountId
@@ -1639,14 +1717,204 @@ export function renderWechatHubHtml(input) {
       }
     }
 
+    function configuredResetAccount() {
+      return String(payload.story?.resetAccount || '').trim();
+    }
+
+    function configuredResetInfo() {
+      const info = String(payload.story?.resetInfo || '').trim();
+      return info || '前缘尽灭，再入轮回';
+    }
+
+    function configuredEndInfo() {
+      const info = String(payload.story?.endInfo || '').trim();
+      return info || '故事至此，圆满落幕。';
+    }
+
+    function badEndingFlags() {
+      return normalizeFlagList(scoreState.flags).filter((flag) => flag.startsWith('bad-end'));
+    }
+
+    function requireUsesBadEndingFlag(requireRule, flag) {
+      const rule = normalizeRequireRule(requireRule);
+      return !!rule?.flags?.includes(flag);
+    }
+
+    function collectBadEndingTargets(flag) {
+      const targets = [];
+      const seen = new Set();
+      const add = (type, id, day) => {
+        const key = type + '|' + id + '|' + day;
+        if (!day || seen.has(key)) return;
+        seen.add(key);
+        targets.push({ type, id, day });
+      };
+
+      for (const conv of (payload.conversations || [])) {
+        if (!conversationMatchesAccount(conv, activeAccountId)) continue;
+        for (const msg of (conv.messages || [])) {
+          if (!requireUsesBadEndingFlag(msg.require, flag) || !isRequireUnlocked(msg.require)) continue;
+          add('chat', conv.id + '|' + String(msg.id || ''), toStageKey(msg.timestamp || msg.timeText || ''));
+        }
+
+        const user = conv.profiles?.users?.[activeAccountId];
+        const articleRefs = articleRefsForUser(user);
+        for (const refId of articleRefs) {
+          const article = conv.articles?.[String(refId)];
+          if (!article || !requireUsesBadEndingFlag(article.require, flag) || !isRequireUnlocked(article.require)) continue;
+          add('article', String(refId), toStageKey(article.publishAt || article.time || ''));
+        }
+
+        for (const [key, moment] of Object.entries(user?.moments || {})) {
+          if (!requireUsesBadEndingFlag(moment?.require, flag) || !isRequireUnlocked(moment?.require)) continue;
+          const day = toStageKey(moment.publishAt || moment.time || '');
+          add('moment', String(moment.id || key), day);
+        }
+      }
+      return targets;
+    }
+
+    function badEndingContentComplete(flag) {
+      const currentStage = currentStageMs();
+      return collectBadEndingTargets(flag).every((target) => {
+        if (target.day > currentStage) return false;
+        if (target.type === 'chat') {
+          const [conversationId, messageId] = target.id.split('|');
+          return hasMessagePlayed(conversationId, messageId);
+        }
+        if (target.type === 'article') return !!getArticleSeen(target.day)[target.id];
+        return !!getMomentSeen(target.day)[target.id];
+      });
+    }
+
+    function trueEndingContentComplete(flag) {
+      return badEndingContentComplete(flag);
+    }
+
+    function badEndingKey(flag) {
+      return accountKey() + '|' + flag;
+    }
+
+    function trueEndingKey(flag) {
+      return 'global|' + String(flag || '');
+    }
+
+    function registerTrueEndingPending(flags, conversationId, messageId) {
+      for (const flag of normalizeFlagList(flags).filter((name) => name.startsWith('true-end'))) {
+        if (trueEndingHandled[trueEndingKey(flag)] || trueEndingPending[flag]) continue;
+        trueEndingPending[flag] = {
+          accountId: activeAccountId,
+          conversationId: String(conversationId || ''),
+          messageId: String(messageId || ''),
+          stage: currentStageMs()
+        };
+      }
+    }
+
+    function markTrueEndingSourceSeen(source) {
+      if (!source || String(source.accountId) !== String(activeAccountId)) return;
+      const stage = String(source.stage || currentStageMs());
+      const stageSeenKey = accountKey(source.accountId) + '|' + stage;
+      if (!stageSeenMap[stageSeenKey]) stageSeenMap[stageSeenKey] = {};
+      stageSeenMap[stageSeenKey][source.conversationId] = true;
+      seenMap[accountKey(source.accountId) + '|' + source.conversationId] = true;
+    }
+
+    function clearBadEndingHandled(accountIdsToReset) {
+      const prefixes = accountIdsToReset.map((id) => accountKey(id) + '|');
+      for (const key of Object.keys(badEndingHandled)) {
+        if (prefixes.some((prefix) => key.startsWith(prefix))) delete badEndingHandled[key];
+      }
+    }
+
+    function clearTrueEndingHandled(accountIdsToReset) {
+      const resetAccounts = new Set(accountIdsToReset.map((id) => String(id)));
+      const legacyPrefixes = accountIdsToReset.map((id) => accountKey(id) + '|');
+      for (const key of Object.keys(trueEndingHandled)) {
+        if (legacyPrefixes.some((prefix) => key.startsWith(prefix))) delete trueEndingHandled[key];
+      }
+      for (const [flag, source] of Object.entries(trueEndingPending)) {
+        if (!resetAccounts.has(String(source?.accountId || ''))) continue;
+        delete trueEndingPending[flag];
+        delete trueEndingHandled[trueEndingKey(flag)];
+      }
+    }
+
     function choiceStateKey(conversationId, messageId, scope) {
       const prefix = String(scope || "account") === "global" ? "global" : accountKey();
+      return prefix + "|" + conversationId + "|" + messageId;
+    }
+
+    function choiceStateKeyForAccount(accountId, conversationId, messageId, scope) {
+      const prefix = String(scope || "account") === "global" ? "global" : accountKey(accountId);
       return prefix + "|" + conversationId + "|" + messageId;
     }
 
     function selectedChoiceId(conversationId, msg) {
       const scope = msg?.choice?.scope || "account";
       return scoreState.choices?.[choiceStateKey(conversationId, msg?.id || "", scope)] || "";
+    }
+
+    function rebuildScoreStateForAccounts(retainedAccountIds) {
+      const retained = new Set(retainedAccountIds.map((id) => String(id)));
+      const previousChoices = scoreState.choices || {};
+      const next = { global: { score: 0 }, flags: [], accounts: {}, choices: {} };
+      const addNextScore = (accountId, scope, value) => {
+        const amount = Number(value || 0);
+        if (!Number.isFinite(amount) || amount === 0) return;
+        if (String(scope || "account") === "global") {
+          next.global.score = Number(next.global.score || 0) + amount;
+          return;
+        }
+        const key = accountKey(accountId);
+        if (!next.accounts[key]) next.accounts[key] = { score: 0 };
+        next.accounts[key].score = Number(next.accounts[key].score || 0) + amount;
+      };
+      for (const conv of (payload.conversations || [])) {
+        const accountId = String(conv.self || "default");
+        if (!retained.has(accountId)) continue;
+        for (const msg of (conv.messages || [])) {
+          if (msg.kind !== "choice") continue;
+          const scope = msg.choice?.scope || "account";
+          const key = choiceStateKeyForAccount(accountId, conv.id, msg.id, scope);
+          const optionId = previousChoices[key];
+          const option = (msg.choice?.options || []).find((row) => row.id === optionId);
+          if (!option) continue;
+          next.choices[key] = option.id;
+          addNextScore(accountId, scope, option.score);
+          for (const flag of normalizeFlagList(option.flags ?? option.flag)) {
+            if (!next.flags.includes(flag)) next.flags.push(flag);
+          }
+        }
+      }
+      scoreState = next;
+    }
+
+    function hydrateTrueEndingPending() {
+      for (const key of Object.keys(trueEndingHandled)) {
+        const flag = key.split('|').at(-1);
+        if (String(flag || '').startsWith('true-end')) trueEndingHandled[trueEndingKey(flag)] = true;
+      }
+      for (const conv of (payload.conversations || [])) {
+        const accountId = String(conv.self || 'default');
+        for (const msg of (conv.messages || [])) {
+          if (msg.kind !== 'choice') continue;
+          const scope = msg.choice?.scope || 'account';
+          const choiceKey = choiceStateKeyForAccount(accountId, conv.id, msg.id, scope);
+          const optionId = scoreState.choices?.[choiceKey];
+          const option = (msg.choice?.options || []).find((row) => row.id === optionId);
+          if (!option) continue;
+          for (const flag of normalizeFlagList(option.flags ?? option.flag).filter((name) => name.startsWith('true-end'))) {
+            if (trueEndingHandled[trueEndingKey(flag)] || trueEndingPending[flag]) continue;
+            trueEndingPending[flag] = {
+              accountId,
+              conversationId: String(conv.id || ''),
+              messageId: String(msg.id || ''),
+              stage: toStageKey(msg.timestamp || msg.timeText || '')
+            };
+          }
+        }
+      }
     }
 
     function hourRequireRule(conv, day) {
@@ -1769,11 +2037,58 @@ export function renderWechatHubHtml(input) {
       return uniq;
     }
 
-    function contentProgressPercent(accountId, day) {
-      const units = collectContentUnitsForAccount(accountId);
+    function collectConsumableContentForAccount(accountId) {
+      const units = new Map();
+      for (const conv of (payload.conversations || [])) {
+        if (!conversationMatchesAccount(conv, accountId)) continue;
+        if (!isRequireUnlocked(conv.chat?.require)) continue;
+        for (const message of (conv.messages || [])) {
+          const day = toStageKey(message.timestamp || message.timeText || '');
+          if (!day || !isRequireUnlocked(hourRequireRule(conv, day)) || !isRequireUnlocked(message.require)) continue;
+          const messageId = String(message.id || '');
+          if (!messageId) continue;
+          units.set('chat|' + conv.id + '|' + messageId, {
+            type: 'chat',
+            day,
+            consumed: () => hasMessagePlayed(conv.id, messageId)
+          });
+        }
+
+        const user = conv.profiles?.users?.[accountId];
+        const articles = conv.articles || {};
+        for (const refId of articleRefsForUser(user)) {
+          const id = String(refId);
+          const article = articles[id];
+          const day = toStageKey(article?.publishAt || article?.time || '');
+          if (!article || !day || !isRequireUnlocked(article.require)) continue;
+          units.set('article|' + id, {
+            type: 'article',
+            day,
+            consumed: () => !!getArticleSeen(day)[id]
+          });
+        }
+
+        for (const moment of Object.values(user?.moments || {})) {
+          if (!moment || !isRequireUnlocked(moment.require)) continue;
+          const day = toStageKey(moment.publishAt || moment.time || '');
+          const momentId = String(moment.id || moment.publishAt || moment.time || '');
+          if (!day || !momentId) continue;
+          const id = accountId + '-' + momentId;
+          units.set('moment|' + accountId + '|' + momentId, {
+            type: 'moment',
+            day,
+            consumed: () => !!getMomentSeen(day)[id]
+          });
+        }
+      }
+      return Array.from(units.values());
+    }
+
+    function contentProgressPercent(accountId) {
+      const units = collectConsumableContentForAccount(accountId);
       if (!units.length) return 100;
-      const current = units.filter((unit) => unit.day <= day).length;
-      return Math.max(0, Math.min(100, Math.floor((current / units.length) * 100)));
+      const consumed = units.filter((unit) => unit.consumed()).length;
+      return Math.max(0, Math.min(100, Math.floor((consumed / units.length) * 100)));
     }
 
     function accountUnlockProgressPercent() {
@@ -1782,11 +2097,9 @@ export function renderWechatHubHtml(input) {
       return Math.max(0, Math.min(100, Math.floor((current / accountIds.length) * 100)));
     }
 
-    function updateStatusProgress(scope) {
+    function updateStatusProgress() {
       if (!statusBattery) return;
-      const value = scope === "accounts"
-        ? accountUnlockProgressPercent()
-        : contentProgressPercent(activeAccountId, currentStageMs());
+      const value = contentProgressPercent(activeAccountId);
       statusBattery.textContent = String(value) + "%";
     }
 
@@ -1830,6 +2143,17 @@ export function renderWechatHubHtml(input) {
       if (!stageSeenMap[key]) stageSeenMap[key] = {};
       return stageSeenMap[key];
     }
+    function messagePlayedKey(conversationId, messageId) {
+      return keyWithAccount('message|' + String(conversationId || '') + '|' + String(messageId || ''));
+    }
+    function hasMessagePlayed(conversationId, messageId) {
+      return !!messagePlayedMap[messagePlayedKey(conversationId, messageId)];
+    }
+    function markMessagePlayed(conversationId, message) {
+      if (!message?.id) return;
+      messagePlayedMap[messagePlayedKey(conversationId, message.id)] = true;
+      saveSeen();
+    }
     function getMomentSeen(day) {
       const key = keyWithAccount(stageKey(day));
       if (!momentSeenMap[key]) momentSeenMap[key] = {};
@@ -1842,7 +2166,15 @@ export function renderWechatHubHtml(input) {
     }
     function unreadChatCount(day) {
       const seen = getStageSeen(day);
-      return (payload.conversations || []).filter((c) => isVisibleByStage(c) && hasNewMessagesOnDay(c, day) && !seen[c.id]).length;
+      const activeConversationId = detailView.style.display === 'flex' && activePlayback && !activePlayback.finished
+        ? activePlayback.conversationId
+        : '';
+      return (payload.conversations || []).filter((c) => (
+        isVisibleByStage(c)
+        && hasNewMessagesOnDay(c, day)
+        && !seen[c.id]
+        && c.id !== activeConversationId
+      )).length;
     }
     function unreadMomentsCount(day) {
       const seen = getMomentSeen(day);
@@ -1907,6 +2239,26 @@ export function renderWechatHubHtml(input) {
       const seen = getStageSeen(day);
       return !seen[conv.id] && hasNewMessagesOnDay(conv, day);
     }
+    function visibleMessageIdsByConversation(day) {
+      const result = new Map();
+      for (const conv of (payload.conversations || [])) {
+        if (!isVisibleByAccount(conv)) continue;
+        result.set(conv.id, new Set(visibleMessagesUntil(conv, day).map((msg) => String(msg.id || ''))));
+      }
+      return result;
+    }
+    function markNewlyUnlockedCurrentStageMessagesUnread(previouslyVisible) {
+      const day = currentStageMs();
+      const seen = getStageSeen(day);
+      for (const conv of (payload.conversations || [])) {
+        if (!isVisibleByAccount(conv)) continue;
+        const before = previouslyVisible.get(conv.id) || new Set();
+        const hasNew = visibleMessagesUntil(conv, day).some((msg) => (
+          toStageKey(msg.timestamp || msg.timeText || '') === day && !before.has(String(msg.id || ''))
+        ));
+        if (hasNew) delete seen[conv.id];
+      }
+    }
     function toListTimeRuntime(timeText) {
       if (!timeText) return "";
       const parts = String(timeText).split(" ");
@@ -1917,7 +2269,11 @@ export function renderWechatHubHtml(input) {
       if (message.recall) return "[消息已撤回]";
       if (message.kind === "status") return String(message.text || "").replace(/\s+/g, " ").trim();
       if (message.kind === "highlight") return String(message.text || "").replace(/\s+/g, " ").trim();
-      if (message.kind === "choice") return ('[选择] ' + (message.choice?.prompt || '')).trim();
+      if (message.kind === "choice") {
+        const picked = selectedChoiceId(conv?.id || "", message);
+        const option = (message.choice?.options || []).find((row) => row.id === picked);
+        return option ? String(option.text || option.label || "") : ('[选择] ' + (message.choice?.prompt || '')).trim();
+      }
       if (message.kind === "image") return "[图片]";
       if (message.kind === "voice") {
         return ('[语音] ' + (message.durationSec ? (String(message.durationSec) + '"') : '')).trim();
@@ -1966,6 +2322,14 @@ export function renderWechatHubHtml(input) {
       const self = activeAccountId || conv.self;
       const participants = Array.from(new Set((conv.messages || []).map((m) => String(m.senderId))));
       return participants.find((id) => id !== self) || conv.chat?.peer || "";
+    }
+    function conversationListAvatar(conv, stage) {
+      if (conv.chat?.type === "group") {
+        return conv.chat?.groupInfo?.avatar || conv.chat?.avatar || conv.avatar || "";
+      }
+      const peerId = getPeerId(conv);
+      const peerProfile = conv.profiles?.users?.[peerId] || {};
+      return resolveEffectiveProfile(peerProfile, stage).avatar || conv.chat?.avatar || conv.avatar || "";
     }
     function profileTimelineNameAtStage(profile, stageKey) {
       const stageMs = parseIdentityReference(stageKey);
@@ -2045,6 +2409,8 @@ export function renderWechatHubHtml(input) {
           }
         }
       }
+      if (startBadEndingIfReady()) return;
+      if (startTrueEndingIfReady()) return;
       if (isAccountFullyCompleted()) {
         const next = nextLockedAccount();
         if (next) {
@@ -2057,11 +2423,128 @@ export function renderWechatHubHtml(input) {
       }
     }
 
+    function resetProgressFrom(resetAccount, options) {
+      const opts = options || {};
+      const resetAt = accountIds.indexOf(resetAccount);
+      if (resetAt === -1) return false;
+      const resetAccounts = accountIds.slice(resetAt);
+      const retainedAccounts = accountIds.slice(0, resetAt);
+      const resetKeys = new Set(resetAccounts.map((id) => accountKey(id)));
+      const belongsToResetAccount = (key) => {
+        const value = String(key || '');
+        return Array.from(resetKeys).some((account) => value === account || value.startsWith(account + '|'));
+      };
+
+      for (const map of [seenMap, stageSeenMap, messagePlayedMap, momentSeenMap, articleSeenMap]) {
+        for (const key of Object.keys(map)) {
+          if (belongsToResetAccount(key)) delete map[key];
+        }
+      }
+      for (const key of Object.keys(stageIndexMap)) {
+        if (resetKeys.has(key)) delete stageIndexMap[key];
+      }
+      for (const id of resetAccounts) {
+        delete accountNoticeMap[id];
+        delete unlockedAccounts[id];
+      }
+      clearBadEndingHandled(resetAccounts);
+      clearTrueEndingHandled(resetAccounts);
+      activeAccountId = resetAccount;
+      unlockedAccounts[resetAccount] = true;
+      if (opts.unlockAllAccounts) {
+        for (const id of accountIds) unlockedAccounts[id] = true;
+      }
+      rebuildScoreStateForAccounts(retainedAccounts);
+      initTimelineStages();
+      saveSeen();
+      return true;
+    }
+
+    function startBadEndingIfReady() {
+      const resetAccount = configuredResetAccount();
+      const flags = badEndingFlags();
+      if (badEndingInProgress || !resetAccount || !flags.length) return false;
+      const flag = flags.find((candidate) => (
+        !badEndingHandled[badEndingKey(candidate)] && badEndingContentComplete(candidate)
+      ));
+      if (!flag) return false;
+      const key = badEndingKey(flag);
+
+      badEndingHandled[key] = true;
+      badEndingInProgress = true;
+      saveSeen();
+      clearTimer();
+      cleanupMomentObserver();
+      phone.inert = true;
+      if (badEndingOverlay) {
+        badEndingOverlay.classList.add('show');
+        badEndingOverlay.setAttribute('aria-hidden', 'false');
+      }
+      window.setTimeout(() => {
+        resetProgressFrom(resetAccount, { unlockAllAccounts: true });
+        showAccountView();
+        if (badEndingOverlay) {
+          badEndingOverlay.classList.remove('show');
+          badEndingOverlay.setAttribute('aria-hidden', 'true');
+        }
+        phone.inert = false;
+        showTopToast(configuredResetInfo());
+        badEndingInProgress = false;
+      }, 1200);
+      return true;
+    }
+
+    function startTrueEndingIfReady() {
+      if (trueEndingInProgress) return false;
+      const entry = Object.entries(trueEndingPending).find(([flag, source]) => (
+        String(source?.accountId || '') === String(activeAccountId)
+        && !trueEndingHandled[trueEndingKey(flag)]
+        && trueEndingContentComplete(flag)
+      ));
+      if (!entry) return false;
+      const [flag, source] = entry;
+
+      trueEndingHandled[trueEndingKey(flag)] = true;
+      delete trueEndingPending[flag];
+      markTrueEndingSourceSeen(source);
+      trueEndingInProgress = true;
+      saveSeen();
+      clearTimer();
+      cleanupMomentObserver();
+      phone.inert = true;
+      if (trueEndingConfirmText) trueEndingConfirmText.textContent = configuredEndInfo();
+      if (trueEndingConfirm) {
+        trueEndingConfirm.classList.add('show');
+        trueEndingConfirm.setAttribute('aria-hidden', 'false');
+      }
+      if (trueEndingConfirmBtn) trueEndingConfirmBtn.focus();
+      return true;
+    }
+
+    function continueTrueEnding() {
+      if (!trueEndingInProgress) return;
+      if (trueEndingConfirm) {
+        trueEndingConfirm.classList.remove('show');
+        trueEndingConfirm.setAttribute('aria-hidden', 'true');
+      }
+      if (badEndingOverlay) {
+        badEndingOverlay.classList.add('show');
+        badEndingOverlay.setAttribute('aria-hidden', 'false');
+      }
+      window.setTimeout(() => {
+        showAccountView();
+        if (badEndingOverlay) {
+          badEndingOverlay.classList.remove('show');
+          badEndingOverlay.setAttribute('aria-hidden', 'true');
+        }
+        phone.inert = false;
+        trueEndingInProgress = false;
+      }, 1200);
+    }
+
     function isAccountFullyCompleted() {
       return stageIndex >= timelineStages.length - 1
-        && unreadChatCount(currentStageMs()) === 0
-        && unreadMomentsCount(currentStageMs()) === 0
-        && unreadArticlesCount(currentStageMs()) === 0;
+        && collectConsumableContentForAccount(activeAccountId).every((unit) => unit.consumed());
     }
 
     function esc(s) {
@@ -2379,6 +2862,26 @@ ${highlightEffectRuntimeSource()}
       if (msg.kind === 'status') {
         return '<div class="end-tip" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + formatText(msg.text || '', msg.mentions) + '</div>';
       }
+      const picked = msg.kind === 'choice' ? selectedChoiceId(opts.conversationId || '', msg) : '';
+      if (picked) {
+        const option = (msg.choice?.options || []).find((row) => row.id === picked);
+        if (option) {
+          const promptMessage = {
+            ...msg,
+            kind: 'text',
+            id: String(msg.id || '') + '--prompt',
+            text: msg.choice?.prompt || ''
+          };
+          const replyMessage = {
+            ...msg,
+            kind: 'text',
+            id: String(msg.id || '') + '--reply',
+            senderId: msg.choice?.speaker || activeAccountId || conv.self,
+            text: option.text || option.label || ''
+          };
+          return renderMessage(promptMessage, conv, opts) + renderMessage(replyMessage, conv, opts);
+        }
+      }
       const user = conv.profiles.users?.[msg.senderId] || { name: msg.senderId, avatar: '' };
       const resolvedProfile = resolveEffectiveProfile(user, currentStageMs());
       const self = activeAccountId || conv.self;
@@ -2416,7 +2919,19 @@ ${highlightEffectRuntimeSource()}
     function queueRecall(conversationId, msg, conv) {
       if (!msg.recall) return;
       const delay = Math.max(0, Number(msg.recallDelayMs ?? msg.recall?.delayMs ?? 0));
-      const t = window.setTimeout(() => applyRecall(conversationId, msg, conv), delay);
+      const t = window.setTimeout(() => {
+        // Let a simultaneous message reveal start its highlight first. A recalled
+        // multi-line bubble remains intact until every queued highlight has ended.
+        const settle = window.setTimeout(() => {
+          const highlight = window.__highlightEffectApi;
+          if (highlight && typeof highlight.afterIdle === 'function') {
+            highlight.afterIdle(() => applyRecall(conversationId, msg, conv));
+            return;
+          }
+          applyRecall(conversationId, msg, conv);
+        }, 0);
+        recallTimers.push(settle);
+      }, delay);
       recallTimers.push(t);
     }
 
@@ -2452,9 +2967,12 @@ ${highlightEffectRuntimeSource()}
       if (scoreState.choices[key]) return;
       const option = (choice.options || []).find((row) => row.id === optionId);
       if (!option) return;
+      const previouslyVisible = visibleMessageIdsByConversation(currentStageMs());
       scoreState.choices[key] = option.id;
       addScore(choice.scope || "account", option.score || 0);
       addFlags(option.flags ?? option.flag);
+      registerTrueEndingPending(option.flags ?? option.flag, conversationId, messageId);
+      markNewlyUnlockedCurrentStageMessagesUnread(previouslyVisible);
       refreshTimelineStagesPreserveCurrent();
       if (activePlayback?.conversationId === conversationId && typeof activePlayback.refreshStageMessages === "function") {
         activePlayback.refreshStageMessages(messageId);
@@ -2473,6 +2991,7 @@ ${highlightEffectRuntimeSource()}
       updateUnreadBadges();
       updateStatusProgress();
       maybeAdvanceStage();
+      if (trueEndingInProgress) return;
       if (activePlayback?.conversationId === conversationId && activePlayback.awaitingChoiceId === messageId) {
         activePlayback.awaitingChoiceId = "";
         schedulePlayback(activePlayback.playNext, 250);
@@ -2512,12 +3031,22 @@ ${highlightEffectRuntimeSource()}
       setStageStatusTime();
       updateUnreadBadges();
       const stage = currentStageMs();
-      listScroll.innerHTML = payload.conversations.filter((c) => isVisibleByStage(c)).map((c) => {
+      const conversations = payload.conversations
+        .filter((c) => isVisibleByStage(c))
+        .map((conversation, index) => ({
+          conversation,
+          index,
+          hasNewContent: hasNewMessagesOnDay(conversation, stage)
+        }))
+        .sort((a, b) => Number(b.hasNewContent) - Number(a.hasNewContent) || a.index - b.index)
+        .map(({ conversation }) => conversation);
+      listScroll.innerHTML = conversations.map((c) => {
         const hasUnread = hasAutoplayUnread(c, stage);
         const dot = hasUnread ? '<span class="list-dot"></span>' : '';
         const displayMsg = listDisplayMessage(c, stage);
         const preview = hasUnread ? "你收到一条新消息" : (displayMsg ? toSnippetRuntime(displayMsg, c) : (c.preview || ""));
         const listTime = displayMsg ? toListTimeRuntime(displayMsg.timeText || displayMsg.timestamp || "") : (c.listTime || "");
+        const listAvatar = conversationListAvatar(c, stage);
         debugLog("renderList:item", {
           account: activeAccountId,
           stage,
@@ -2526,10 +3055,11 @@ ${highlightEffectRuntimeSource()}
           displayMid: displayMsg?.id || "",
           displayStage: displayMsg ? toStageKey(displayMsg.timestamp || displayMsg.timeText || "") : "",
           preview,
-          listTime
+          listTime,
+          listAvatar
         });
         return '<button class="list-item" data-id="' + esc(c.id) + '">'
-          + '<div class="list-avatar-wrap"><img class="list-avatar" src="' + esc(c.avatar || '') + '" alt="avatar"/>' + dot + '</div>'
+          + '<div class="list-avatar-wrap"><img class="list-avatar" src="' + esc(listAvatar) + '" alt="avatar"/>' + dot + '</div>'
           + '<div class="list-main">'
           + '<div class="list-title">' + esc(conversationTitle(c)) + '</div>'
           + '<div class="list-preview">' + esc(preview) + '</div>'
@@ -2615,6 +3145,7 @@ ${highlightEffectRuntimeSource()}
         }
       };
       activePlayback = playback;
+      updateUnreadBadges();
 
       if (playback.current >= stageMessages.length) {
         finishConversation(conversationId);
@@ -2631,9 +3162,12 @@ ${highlightEffectRuntimeSource()}
         const msg = stageMessages[playback.current];
         if (msg.heartbeat !== undefined) heartbeatEngine.setLevel(msg.heartbeat);
         timeline.insertAdjacentHTML('beforeend', renderMessage(msg, conv, { conversationId }));
+        markMessagePlayed(conversationId, msg);
         if (msg.kind === 'highlight') {
           triggerMessageHighlight(timeline.querySelector('article[data-cid="' + conversationId + '"][data-mid="' + msg.id + '"]'));
         }
+        if (startBadEndingIfReady()) return;
+        if (startTrueEndingIfReady()) return;
         queueRecall(conversationId, msg, conv);
         timeline.scrollTop = timeline.scrollHeight;
         playback.current += 1;
@@ -2657,11 +3191,78 @@ ${highlightEffectRuntimeSource()}
 
     function acceleratePlayback() {
       if (!activePlayback || activePlayback.finished || typeof activePlayback.playNext !== "function") return;
+      if (activePlayback.awaitingChoiceId) return;
       stopPlaybackTimer();
       activePlayback.playNext();
     }
 
+    function hasUnresolvedPlaybackChoice() {
+      if (!activePlayback || activePlayback.finished) return false;
+      const conv = payload.conversations.find((item) => item.id === activePlayback.conversationId);
+      if (!conv) return false;
+      return (activePlayback.stageMessages || []).some((message) => (
+        message.kind === 'choice' && !selectedChoiceId(conv.id, message)
+      ));
+    }
+
+    function resumeConversationPlayback() {
+      if (!activePlayback || activePlayback.finished || activePlayback.awaitingChoiceId) return;
+      if (typeof activePlayback.playNext === 'function') schedulePlayback(activePlayback.playNext, 250);
+    }
+
+    function closeSkipConfirm(options) {
+      const opts = options || {};
+      if (skipConfirm) {
+        skipConfirm.classList.remove('show');
+        skipConfirm.setAttribute('aria-hidden', 'true');
+      }
+      pendingConversationExit = null;
+      phone.inert = badEndingInProgress || trueEndingInProgress;
+      if (opts.resume !== false) resumeConversationPlayback();
+    }
+
+    function requestConversationExit(navigate) {
+      const playbackActive = detailView.style.display === 'flex' && activePlayback && !activePlayback.finished;
+      if (!playbackActive) {
+        navigate();
+        return;
+      }
+      stopPlaybackTimer();
+      pendingConversationExit = navigate;
+      const blockedByChoice = hasUnresolvedPlaybackChoice();
+      if (skipConfirmText) {
+        skipConfirmText.textContent = blockedByChoice
+          ? '当前对话还有尚未选择的互动选项，请先完成选择后再跳过。'
+          : '跳过后，剩余消息将视为已播放。';
+      }
+      if (skipConfirmBtn) skipConfirmBtn.disabled = blockedByChoice;
+      if (skipConfirm) {
+        skipConfirm.classList.add('show');
+        skipConfirm.setAttribute('aria-hidden', 'false');
+      }
+      phone.inert = true;
+      if (blockedByChoice) skipCancel?.focus();
+      else skipConfirmBtn?.focus();
+    }
+
+    function confirmSkipConversation() {
+      if (!activePlayback || activePlayback.finished || hasUnresolvedPlaybackChoice()) return;
+      const playback = activePlayback;
+      const navigate = pendingConversationExit;
+      for (let index = playback.current; index < playback.stageMessages.length; index += 1) {
+        const message = playback.stageMessages[index];
+        if (!message?.id) continue;
+        messagePlayedMap[messagePlayedKey(playback.conversationId, message.id)] = true;
+      }
+      closeSkipConfirm({ resume: false });
+      finishConversation(playback.conversationId);
+      if (!badEndingInProgress && !trueEndingInProgress && typeof navigate === 'function') navigate();
+    }
+
     function renderAccountList() {
+      if (accountProgress) {
+        accountProgress.textContent = '轻触头像以切换账号 · 已解锁 ' + accountIds.filter((id) => isAccountUnlocked(id)).length + '/' + accountIds.length;
+      }
       accountListWrap.innerHTML = accountIds.filter((id) => isAccountUnlocked(id)).map((id) => {
         const user = profileForAccount(id);
         const name = resolveAccountCardName(user, id);
@@ -2676,7 +3277,7 @@ ${highlightEffectRuntimeSource()}
           + '<div><div class="account-name">' + esc(name) + '</div></div>'
           + current
           + '</button>';
-      }).join('') + '<button class="account-reset" type="button">重置数据</button>';
+      }).join('') + '<button class="account-reset" type="button">饮用孟婆汤</button>';
       accountListWrap.querySelectorAll('.account-card').forEach((btn) => {
         btn.addEventListener('click', () => {
           cleanupMomentObserver();
@@ -2699,6 +3300,9 @@ ${highlightEffectRuntimeSource()}
 
     function openResetConfirm() {
       if (!resetConfirm) return;
+      const name = resolveAccountCardName(profileForAccount(activeAccountId), activeAccountId);
+      if (resetConfirmTitle) resetConfirmTitle.textContent = '饮用孟婆汤忘却“' + name + '”的旧事';
+      if (resetConfirmText) resetConfirmText.textContent = '将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。';
       resetConfirm.classList.add('show');
       resetConfirm.setAttribute('aria-hidden', 'false');
       if (resetCancel) resetCancel.focus();
@@ -2711,12 +3315,10 @@ ${highlightEffectRuntimeSource()}
     }
 
     function confirmResetProgress() {
-      try {
-        localStorage.removeItem(persistKey);
-      } catch (_) {
-        // Ignore storage failures before reload.
-      }
-      window.location.reload();
+      resetProgressFrom(activeAccountId);
+      clearTimer();
+      closeResetConfirm();
+      showChatList();
     }
 
     function showAccountView() {
@@ -2740,17 +3342,11 @@ ${highlightEffectRuntimeSource()}
       updateStatusProgress("accounts");
     }
 
-    backBtn.addEventListener('click', () => {
-      clearTimer();
-      showChatList();
-    });
-    tabChat.addEventListener('click', () => {
-      clearTimer();
-      showChatList();
-    });
-    tabContacts.addEventListener('click', showContacts);
-    tabMoments.addEventListener('click', showMoments);
-    tabMe.addEventListener('click', showAccountView);
+    backBtn.addEventListener('click', () => requestConversationExit(showChatList));
+    tabChat.addEventListener('click', () => requestConversationExit(showChatList));
+    tabContacts.addEventListener('click', () => requestConversationExit(showContacts));
+    tabMoments.addEventListener('click', () => requestConversationExit(showMoments));
+    tabMe.addEventListener('click', () => requestConversationExit(showAccountView));
     if (accountBack) accountBack.addEventListener('click', showChatList);
     momentsScroll.addEventListener('click', (e) => {
       const profileBtn = e.target.closest('.moment-profile-btn');
@@ -2763,13 +3359,22 @@ ${highlightEffectRuntimeSource()}
     });
     if (resetCancel) resetCancel.addEventListener('click', closeResetConfirm);
     if (resetConfirmBtn) resetConfirmBtn.addEventListener('click', confirmResetProgress);
+    if (skipCancel) skipCancel.addEventListener('click', closeSkipConfirm);
+    if (skipConfirmBtn) skipConfirmBtn.addEventListener('click', confirmSkipConversation);
+    if (trueEndingConfirmBtn) trueEndingConfirmBtn.addEventListener('click', continueTrueEnding);
     if (resetConfirm) {
       resetConfirm.addEventListener('click', (e) => {
         if (e.target === resetConfirm) closeResetConfirm();
       });
     }
+    if (skipConfirm) {
+      skipConfirm.addEventListener('click', (e) => {
+        if (e.target === skipConfirm) closeSkipConfirm();
+      });
+    }
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && resetConfirm?.classList.contains('show')) closeResetConfirm();
+      else if (e.key === 'Escape' && skipConfirm?.classList.contains('show')) closeSkipConfirm();
     });
     timeline.addEventListener('click', (e) => {
       const avatarBtn = e.target.closest('.avatar-btn');
@@ -2841,6 +3446,7 @@ ${highlightEffectRuntimeSource()}
 
     loadSeen();
     initAccounts();
+    hydrateTrueEndingPending();
     initTimelineStages();
     installImageViewer();
     installHighlightEffect(phone);
@@ -3282,6 +3888,7 @@ ${highlightEffectRuntimeSource()}
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
+      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
       articleModal.setAttribute('aria-hidden', 'false');
     }
@@ -3511,6 +4118,18 @@ ${highlightEffectRuntimeSource()}
       if (msg.kind === 'status') {
         return '<div class="end-tip" data-cid="' + esc(opts.conversationId || '') + '" data-mid="' + esc(msg.id || '') + '">' + formatText(msg.text || '', msg.mentions) + '</div>';
       }
+      const picked = msg.kind === 'choice' ? selectedChoiceId(opts.conversationId || '', msg) : '';
+      if (picked) {
+        const option = (msg.choice?.options || []).find((row) => row.id === picked);
+        if (option) {
+          msg = {
+            ...msg,
+            kind: 'text',
+            senderId: msg.choice?.speaker || conv.self,
+            text: option.text || option.label || ''
+          };
+        }
+      }
       const user = conv.profiles.users?.[msg.senderId] || { name: msg.senderId, avatar: '' };
       const resolvedProfile = resolveEffectiveProfile(user, msg.timestamp || msg.timeText || '');
       const self = conv.self;
@@ -3542,7 +4161,19 @@ ${highlightEffectRuntimeSource()}
     function queueRecall(conversationId, msg, conv) {
       if (!msg.recall) return;
       const delay = Math.max(0, Number(msg.recallDelayMs ?? msg.recall?.delayMs ?? 0));
-      const t = window.setTimeout(() => applyRecall(conversationId, msg, conv), delay);
+      const t = window.setTimeout(() => {
+        // Let a simultaneous message reveal start its highlight first. A recalled
+        // multi-line bubble remains intact until every queued highlight has ended.
+        const settle = window.setTimeout(() => {
+          const highlight = window.__highlightEffectApi;
+          if (highlight && typeof highlight.afterIdle === 'function') {
+            highlight.afterIdle(() => applyRecall(conversationId, msg, conv));
+            return;
+          }
+          applyRecall(conversationId, msg, conv);
+        }, 0);
+        recallTimers.push(settle);
+      }, delay);
       recallTimers.push(t);
     }
     function renderSceneTip(scene) {

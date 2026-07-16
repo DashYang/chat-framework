@@ -12,6 +12,7 @@ export const articlePageCss = `
 .article-page-text h2{font-size:var(--article-h2-size,20px)}
 .article-page-text h3{font-size:var(--article-h3-size,18px)}
 .article-page-text p{margin:0 0 12px;color:var(--article-paragraph-color,var(--article-text-color,#222))}
+.article-page-text strong{display:inline;padding:1px 5px 2px;border-radius:var(--article-strong-radius,2px);background:var(--article-strong-bg,#2b2b2b);color:var(--article-strong-color,#ff6b6b);font-weight:700;line-height:inherit;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .article-page-text blockquote{margin:14px 0;padding:10px 12px;border-left:3px solid var(--article-blockquote-border,#d0d0d0);background:var(--article-blockquote-bg,#f7f7f7);color:var(--article-blockquote-color,#555)}
 .article-page-text ul,.article-page-text ol{margin:0 0 12px 20px;padding:0}
 .article-page-text li{margin:4px 0}

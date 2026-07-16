@@ -8,6 +8,7 @@
     "chat-framework": "src/cli.js"
   },
   "scripts": {
+    "test": "node --test test/*.test.js",
     "build": "node src/build.js examples/chat.md dist/index.html",
     "build:paper": "node src/build.js examples/chat-paper.md dist/paper.html",
     "build:iterms": "node src/build.js examples/chat-iterms.md dist/iterms.html",

@@ -2,6 +2,16 @@ import { themes } from "./themes.js";
 import { imageViewerRuntimeSource } from "./article-markdown.js";
 import { highlightEffectRuntimeSource } from "./highlight-effect.js";
 
+const choiceCss = `
+.choice-panel{display:flex;flex-direction:column;gap:8px;min-width:190px;white-space:normal}
+.choice-prompt{font-size:14px;line-height:1.45;color:var(--text,var(--ink,#222))}
+.choice-option{width:100%;border:1px solid var(--line,#ddd);background:#f7f7f7;border-radius:8px;padding:8px 10px;text-align:left;color:#222;cursor:pointer;font-size:14px;line-height:1.35}
+.choice-option.selected{border-color:var(--green,#07c160);background:#eefbf3;color:#047a3c;font-weight:600}
+.choice-option:disabled{cursor:default;opacity:.86}
+[data-theme="iterms"] .choice-option{background:#0a0d14;border-color:#18351d;border-radius:2px;color:var(--text);font-family:var(--mono)}
+[data-theme="iterms"] .choice-option.selected{background:#0d1a12;border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(0,255,65,.16)}
+`;
+
 const WECHAT_EMOJI_MAP = {
   微笑: "🙂",
   撇嘴: "😒",
@@ -352,6 +362,14 @@ function renderContent(m, ctx) {
       </div>
     </div>`;
   }
+  if (m.kind === "choice") {
+    const choice = m.choice || {};
+    const options = Array.isArray(choice.options) ? choice.options : [];
+    return `<div class="choice-panel" data-choice-id="${escapeHtml(m.id || "")}">
+      <div class="choice-prompt">${escapeHtml(choice.prompt || "")}</div>
+      ${options.map((option) => `<button class="choice-option" type="button" data-choice-option="${escapeHtml(option.id || "")}">${escapeHtml(option.label || "")}</button>`).join("")}
+    </div>`;
+  }
   return `<div>${formatText(m.text || "", m.mentions)}</div>`;
 }
 
@@ -372,7 +390,7 @@ function renderMessage(m, ctx) {
   const u = ctx.profiles.users[m.senderId] || { name: m.senderId, avatar: "" };
   const selfId = ctx.chat.self;
   const displayName = resolveDisplayName(m.senderId, ctx, m.senderId === selfId);
-  const isCardMessage = m.kind === "link-card" || m.kind === "article-card" || m.kind === "contact-card";
+  const isCardMessage = m.kind === "link-card" || m.kind === "article-card" || m.kind === "contact-card" || m.kind === "choice";
   const cls = (m.senderId === selfId ? "msg self" : "msg") + (isCardMessage ? " card-msg" : "") + (m.kind === "highlight" ? " highlight-msg" : "");
   const highlightAttr = m.kind === "highlight" ? ` data-highlight-text="${escapeHtml(m.text || "")}"` : "";
   const avatar = `<button class="avatar-btn" type="button"
@@ -424,7 +442,7 @@ export function renderHtml(ctx) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(chatTitle)}</title>
-  <style>${theme.css}</style>
+  <style>${theme.css}${choiceCss}</style>
 </head>
 <body data-theme="${escapeHtml(themeId)}">
   <main class="chat">
@@ -486,6 +504,7 @@ export function renderHtml(ctx) {
       const avatarBtns = Array.from(document.querySelectorAll('.avatar-btn'));
       const voiceBtns = Array.from(document.querySelectorAll('.voice-btn'));
       const articleBtns = Array.from(document.querySelectorAll('.article-card'));
+      const choicePanels = Array.from(document.querySelectorAll('.choice-panel[data-choice-id]'));
 
       function parseIdentityReference(raw) {
         if (!raw) return null;
@@ -663,6 +682,7 @@ export function renderHtml(ctx) {
         else articleCover.removeAttribute('data-preview-src');
         articleText.innerHTML = article.html || renderMarkdown(article.text);
         articleImages.innerHTML = (article.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
+        articleModal.scrollTop = 0;
         articleModal.classList.add('show');
         articleModal.setAttribute('aria-hidden', 'false');
       }
@@ -721,6 +741,31 @@ export function renderHtml(ctx) {
           audio.play().catch(() => {
             clearAudioState();
           });
+        });
+      });
+
+      choicePanels.forEach((panel) => {
+        const choiceId = panel.dataset.choiceId || '';
+        const storageKey = 'chat-framework:choice:' + location.pathname + ':' + choiceId;
+        const applyChoice = (optionId) => {
+          panel.querySelectorAll('.choice-option').forEach((btn) => {
+            btn.classList.toggle('selected', btn.dataset.choiceOption === optionId);
+            btn.disabled = true;
+          });
+        };
+        try {
+          const saved = localStorage.getItem(storageKey);
+          if (saved) applyChoice(saved);
+        } catch (_) {
+          // Storage can be unavailable for local files or privacy-restricted pages.
+        }
+        panel.addEventListener('click', (event) => {
+          const btn = event.target.closest('.choice-option');
+          if (!btn || btn.disabled) return;
+          const optionId = btn.dataset.choiceOption || '';
+          if (!optionId) return;
+          applyChoice(optionId);
+          try { localStorage.setItem(storageKey, optionId); } catch (_) {}
         });
       });
 ${imageViewerRuntimeSource()}

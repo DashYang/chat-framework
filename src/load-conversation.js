@@ -209,11 +209,13 @@ function normalizeFlags(raw) {
 function normalizeRequire(raw) {
   if (raw === undefined || raw === null || raw === "") return undefined;
   if (typeof raw === "number") {
-    return Number.isFinite(raw) ? { score: raw, scope: "account" } : undefined;
+    if (!Number.isFinite(raw)) throw new Error(`Invalid require score: ${raw}`);
+    return { score: raw, scope: "account" };
   }
   if (typeof raw === "string") {
     const score = Number(raw.trim());
-    return Number.isFinite(score) ? { score, scope: "account" } : undefined;
+    if (!Number.isFinite(score)) throw new Error(`Invalid require score: ${raw}`);
+    return { score, scope: "account" };
   }
   if (typeof raw === "object" && !Array.isArray(raw)) {
     const hasScore = raw.score !== undefined && raw.score !== null;
@@ -223,7 +225,7 @@ function normalizeRequire(raw) {
     const result = { scope: normalizeScoreScope(raw.scope) };
     if (hasScore) {
       const score = Number(raw.score);
-      if (!Number.isFinite(score)) return undefined;
+      if (!Number.isFinite(score)) throw new Error(`Invalid require score: ${raw.score}`);
       result.score = score;
     }
     if (flags.length) result.flags = flags;

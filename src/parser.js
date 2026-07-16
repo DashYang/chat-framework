@@ -158,7 +158,7 @@ function parseCompactTextBlocks(lines, startIndex) {
   return { blocks: blocks.filter(Boolean), nextIndex: i };
 }
 
-function buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, blocks) {
+function buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, blocks) {
   blocks.forEach((block, index) => {
     finalizeDraftMessage(
       drafts,
@@ -166,8 +166,38 @@ function buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw,
       autoIdRef,
       senderId,
       index === 0 ? timeRaw : undefined,
-      [],
+      tags,
       block
+    );
+  });
+}
+
+function isCompactTextHeader(idRaw, tags) {
+  if (idRaw) return false;
+  return tags.every((tag) => (
+    tag === "recall"
+    || tag.startsWith("recall:")
+    || tag.startsWith("require-score:")
+    || tag.startsWith("require-flag:")
+  ));
+}
+
+function buildStatusMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, bodyText, idRaw) {
+  const blocks = bodyText
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  blocks.forEach((block, index) => {
+    finalizeDraftMessage(
+      drafts,
+      usedIds,
+      autoIdRef,
+      senderId,
+      index === 0 ? timeRaw : undefined,
+      tags,
+      block,
+      index === 0 ? idRaw : undefined
     );
   });
 }
@@ -271,6 +301,7 @@ function toChoice(body) {
   const prompt = String(parsed.prompt || "").trim();
   if (!prompt) throw new Error("[choice] requires prompt");
   const scope = normalizeScoreScope(parsed.scope);
+  const speaker = String(parsed.speaker || parsed.sender || "").trim();
   const rawOptions = parsed.options || {};
   if (!rawOptions || typeof rawOptions !== "object" || Array.isArray(rawOptions)) {
     throw new Error("[choice] requires options object");
@@ -281,17 +312,19 @@ function toChoice(body) {
       : { label: option };
     const label = String(row.label || "").trim();
     if (!label) throw new Error(`[choice] option "${id}" requires label`);
+    const text = String(row.text || row.reply || label).trim();
     const score = Number(row.score || 0);
     const flags = normalizeFlags(row.flags ?? row.flag);
     return {
       id: String(id),
       label,
+      text,
       score: Number.isFinite(score) ? score : 0,
       ...(flags.length ? { flags } : {})
     };
   });
   if (options.length < 2) throw new Error("[choice] requires at least two options");
-  return { prompt, scope, options };
+  return { prompt, scope, ...(speaker ? { speaker } : {}), options };
 }
 
 function parseRequireScoreTag(tag) {
@@ -458,13 +491,12 @@ export function parseChatMarkdown(raw) {
     const { senderId, idRaw, timeRaw, tags } = header;
     i += 1;
 
-    const isCompactPlainTextHeader = !idRaw && tags.length === 0;
-    if (isCompactPlainTextHeader) {
+    if (isCompactTextHeader(idRaw, tags)) {
       const { blocks, nextIndex } = parseCompactTextBlocks(lines, i);
       if (!blocks.length) {
         throw new Error(`Empty compact message block for sender ${senderId} at line ${i}`);
       }
-      buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, blocks);
+      buildCompactTextMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, blocks);
       i = nextIndex;
       continue;
     }
@@ -478,6 +510,10 @@ export function parseChatMarkdown(raw) {
     }
 
     const bodyText = bodyLines.join("\n").trim();
+    if (tags.includes("status")) {
+      buildStatusMessages(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, bodyText, idRaw);
+      continue;
+    }
     finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tags, bodyText, idRaw);
   }
 

@@ -32,9 +32,16 @@
 
 通过 `story.yml` 定义多账号的线性解锁：
 - **顺序**: 按 `accountOrder` 定义。
-- **解锁条件**: 前序账号完成所有剧情互动（阅读、朋友圈、文章）。
+- **解锁条件**: 前序账号当前分支中可见的聊天消息、朋友圈和文章全部实际消费；未满足 `require` 的隐藏内容不阻塞推进。
 - **反馈**: 下一个账号在“我”Tab 出现红点提示。
 - **定位**: `story.yml` 是会话总览页中的推进配置。剧情页 (`renderWechatStoryHtml`) 则是第三种主要渲染产物，支持多场景串联。
+
+### 2.3 分支与结局状态
+
+- `[choice]` 的选项可写入账号/全局分数和全局 flag；`require` 统一据此控制会话、消息、文章与社交内容可见性。
+- `bad-end*` flag 在其精确依赖内容消费完成后触发关机效果，并从 `story.resetAccount` 开始重置后续进度。
+- `true-end*` flag 在其精确依赖内容消费完成后展示 `story.endInfo`，保留全部进度且每个 flag 只触发一次。
+- 分数、flag、选择、每条消息消费状态、结局处理状态均保存在 `persistKey` 对应的 `localStorage` 数据中。
 
 ## 3. 功能详细描述
 
@@ -59,6 +66,9 @@
 - 图片消息：`[image]`
 - 链接卡片：`[link-card]`
 - 引用消息：`[quote:messageId]`（引用前文）
+- 状态消息：`[status]`，支持空行拆分并继承头部条件标签
+- 互动选择：`[choice]`，支持统一回复角色、选项台词、分数和 flag
+- 撤回与高亮：撤回等待当前高亮效果结束；无显式 ID 的撤回文本可按空行拆成多条消息
 - 时间：首条绝对时间，后续可相对时间
 
 ### 3.3 会话总览页交互能力
@@ -71,6 +81,9 @@
 - 本地记忆：基于 `localStorage` 的 `persistKey`
 - **阶段时间驱动**: 详情页与总览页共用阶段时间。
 - **账号隔离**: 每个账号拥有独立的已读状态与进度。
+- **消费口径**: 聊天按消息实际播放、文章按打开全文、社交内容按进入视口停留分别记录；账号推进不再只依赖红点状态。
+- **播放中 badge**: 正在详情页播放的会话临时从待播放数字中排除，不提前写入永久已读。
+- **退出守卫**: 播放未结束时，所有站内详情出口先暂停并确认；确认跳过会消费剩余可见消息，未选择的互动选项会阻止跳过。
 
 ### 3.4 剧情页交互能力
 
@@ -114,6 +127,7 @@
 - 解析消息头、标签、消息体
 - 自动识别纯 URL 文本并转链接卡片
 - 解析 `[heartbeat:N]` / `[heartbeat:end]` 注解
+- 解析状态块拆分、撤回简写及带回复角色/台词的互动选择
 
 关键接口：
 - `parseChatMarkdown(raw)`
@@ -134,6 +148,7 @@
 职责：
 - 读取 md 与关联 yaml
 - 校验 sender 与 messageId
+- 归一化并严格校验会话/消息的分数与 flag 解锁条件
 - 输出归一化会话对象
 
 关键接口：
@@ -157,6 +172,7 @@
 - 实现 **账号推进** 与 **阶段时间** 的前端逻辑
 - 实现 **HeartbeatEngine**（Web Audio API 心跳合成器），支持自动播放时节奏切换
 - 本地持久化已播放状态
+- 播放中的会话临时从待播放 badge 中排除；离开详情页时由统一退出守卫暂停播放并确认继续或跳过
 
 ### 4.7 `src/build.js` 与 `src/build-folder.js`
 
@@ -240,7 +256,12 @@ open wechat-hub.html
   -> click list item
       -> openConversation (updates Stage Time display)
       -> if seenMap[id] then full render
-      -> else content-paced replay + end tip
+      -> else content-paced replay + temporarily exclude active conversation from unread badge
+      -> leaving detail while replaying opens skip confirmation
+          -> continue: resume replay
+          -> skip: mark remaining visible messages played, unless an unresolved choice exists
+          -> navigate to requested in-app destination
+      -> end tip
       -> mark seen in localStorage & check for progression
 ```
 
@@ -261,14 +282,21 @@ open wechat-hub.html
 - `timeRaw`
 - `timestamp`
 - `timeText`
-- `kind`（`text`/`image`/`link-card`）
+- `kind`（`text`/`image`/`link-card`/`status`/`choice` 等）
 - `quote`（可选）
+- `require`、`choice`、`recall`、`heartbeat`（可选）
 
 会话对象核心字段：
 - `frontmatter`
 - `profiles`
 - `chat`
 - `messages`
+
+总览页持久化状态核心字段：
+- `stageSeen` / `messagePlayed` / `momentSeen` / `articleSeen`
+- `stageIndexMap` / `unlockedAccounts` / `accountNoticeMap`
+- `scoreState`（分数、flag、已选选项）
+- `badEndingHandled` / `trueEndingPending` / `trueEndingHandled`
 
 ## 8. 非功能性设计
 

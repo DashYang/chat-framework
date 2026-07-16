@@ -39,6 +39,16 @@ export function highlightEffectRuntimeSource() {
         const textEl = overlay.querySelector('.highlight-effect-text');
         let locked = false;
         let timer = null;
+        const queue = [];
+        const idleWaiters = [];
+
+        function flushIdleWaiters() {
+          if (locked || queue.length) return;
+          while (idleWaiters.length) {
+            const callback = idleWaiters.shift();
+            callback();
+          }
+        }
 
         function syncBounds() {
           const rect = host === document.body
@@ -52,7 +62,11 @@ export function highlightEffectRuntimeSource() {
 
         function play(text) {
           const value = String(text || '').trim();
-          if (!value || locked) return;
+          if (!value) return false;
+          if (locked) {
+            queue.push(value);
+            return true;
+          }
           locked = true;
           window.clearTimeout(timer);
           textEl.textContent = value;
@@ -63,26 +77,40 @@ export function highlightEffectRuntimeSource() {
           timer = window.setTimeout(() => {
             overlay.classList.remove('active');
             locked = false;
+            const next = queue.shift();
+            if (next) play(next);
+            else flushIdleWaiters();
           }, ${HIGHLIGHT_EFFECT_DURATION_MS});
+          return true;
+        }
+
+        function afterIdle(callback) {
+          if (typeof callback !== 'function') return;
+          if (!locked && !queue.length) {
+            callback();
+            return;
+          }
+          idleWaiters.push(callback);
         }
 
         window.addEventListener('resize', syncBounds);
         window.addEventListener('scroll', syncBounds, true);
         syncBounds();
-        return { play, syncBounds, overlay };
+        return { play, afterIdle, syncBounds, overlay };
       }
 
       function playHighlightEffect(text, root) {
         const api = window.__highlightEffectApi || installHighlightEffect(root);
         window.__highlightEffectApi = api;
-        api.play(text);
+        return api.play(text);
       }
 
       function triggerHighlightNode(node, root) {
         if (!node || node.dataset.highlightPlayed === 'true') return;
         const text = node.dataset.highlightText || node.textContent || '';
-        node.dataset.highlightPlayed = 'true';
-        playHighlightEffect(text, root);
+        if (playHighlightEffect(text, root)) {
+          node.dataset.highlightPlayed = 'true';
+        }
       }
 
       function installHighlightAutoTrigger(root) {

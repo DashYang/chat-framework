@@ -76,6 +76,10 @@ chat: "./chat.yml"
 articles: "./articles"
 theme: "wechat"
 specVersion: "1.0"
+require:
+  score: 2
+  flag: "met_bob"
+  scope: "account"
 ---
 ```
 
@@ -86,6 +90,7 @@ specVersion: "1.0"
 - `articles`：文章目录路径，默认 `./articles`（单会话页中用于解析文章中引用的 `[article]` 消息）
 - `theme`：单会话页主题，可选 `wechat`（默认）、`paper`、`iterms`（绿黑终端风格）
 - `specVersion`：规范版本，建议固定 `1.0`
+- `require`：可选的会话级解锁条件，可直接写在单聊 Markdown 中，无需单独的 `chat.yml`。支持 `score`、`flag` 或 `flags`；分数和标记同时存在时为 AND 关系。`scope` 默认为 `account`，也可设为 `global`；`flag` / `flags` 始终检查全局标记。
 
 ### 2.2 消息头语法
 
@@ -117,7 +122,7 @@ text block 2
 - 同一个 `@senderId` 头下面，**每个用空行分隔的文本块**都会被解析成一条独立消息
 - 该形式只适用于纯文本消息（包括纯 URL 文本，它仍会自动转为链接卡片）
 - 该形式允许第一条显式写时间；拆分后**只有第一段**继承这个时间，后续段落按现有规则自动推导时间
-- 如果某条消息需要 `#messageId`、或任意 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[status]`、`[highlight]`），则仍然必须为该消息单独写完整消息头
+- 如果某条消息需要 `#messageId`、或内容类型 tag（如 `[quote]`、`[image]`、`[voice]`、`[link-card]`、`[status]`、`[highlight]`），则仍然必须为该消息单独写完整消息头；`[recall]` / `[recall:+延时]` 是例外，可与空行分段简写共用
 - 在简化写法里，空行不再表示“同一条消息的分段”，而是表示“下一条同发送者消息”
 
 示例：
@@ -166,7 +171,7 @@ text block 2
 - `[link-card]`：消息体为键值对卡片配置
 - `[quote:<messageId>]`：引用前文消息
 - `[voice]`：语音消息（支持时长与转写）
-- `[recall]` / `[recall:+10s]`：消息撤回（可设置撤回延时）
+- `[recall]` / `[recall:+10s]`：消息撤回（可设置撤回延时）。无 `#messageId` 的纯文本可用空行拆成多条消息，每段继承同一撤回延时并在各自显示后撤回；带 ID 或其他内容类型 tag 的显式多行正文会作为一个气泡完整显示并一起消失。若撤回时突脸动画正在播放，会等动画结束后再撤回。
 - `[article]`：微信文章转发卡片
 - `[contact-card]`：联系人名片
 - `[status]`：居中状态提示，正文为提示文案，样式与默认“当前聊天已结束”一致
@@ -450,7 +455,7 @@ article:
 - `officialArticles` 推荐直接填写文章文件路径，也可以填写无扩展 article id；folder build 下相对路径以输入根目录解析，single-file build 下相对路径以 markdown 所在目录解析
 - Markdown 文章的 frontmatter 字段与 YAML 文章字段语义一致；frontmatter 之后的正文作为文章正文渲染
 - 如果 Markdown 文章没有 frontmatter，会取第一个 H1 作为标题，否则使用文件名 id；其他元信息可为空
-- 文章正文由 `markdown-it` 在构建期渲染，支持常见 Markdown/GFM 表格与删除线；原始 HTML 默认禁用，会作为文本显示
+- 文章正文由 `markdown-it` 在构建期渲染，支持常见 Markdown/GFM 表格与删除线；`**重点**` 会渲染为深灰底、珊瑚红字的重点标签；原始 HTML 默认禁用，会作为文本显示
 - 仅展示 `publishAt` 所在小时 `<= 当前阶段小时` 的文章
 - `require` 可选；配置后还要求对应分数和/或标记达标才显示，默认使用当前账号分数。支持 `flag` / `flags` 字段（全局标记）
 - 支持文字+图片
@@ -547,17 +552,29 @@ ui:
 ```yml
 story:
   accountOrder: ["protagonist", "sister", "admin"]
+  title: "我的互动故事"
+  favicon: "assets/game-icon.png"
+  resetInfo: "前缘尽灭，再入轮回"
+  resetAccount: "protagonist"
+  endInfo: "尘埃落定。"
 ```
 
 字段说明：
 - `accountOrder`：账号 id 列表（账号 id 即 `profiles/*.yml` 文件名），用于定义解锁顺序与展示顺序。
+- `title`：可选的浏览器网页标题；未配置时使用构建输入目录名。
+- `favicon`：可选的网站图标 URL 或路径，会输出为 HTML 的 `link rel="icon"`。相对路径以生成 HTML 所在目录解析，构建不会复制资源。
+- `resetInfo`：可选的坏结局提示正文，默认值为“前缘尽灭，再入轮回”。
+- `resetAccount`：可选的坏结局重置起点，必须是 `accountOrder` 中的账号；设置 `resetInfo` 或 `resetAccount` 时必须提供有效的 `resetAccount`。
+- `endInfo`：可选的真结局提示正文，默认值为“故事至此，圆满落幕。”；不要求配置 `resetAccount`。
 
 运行时行为：
 - 初始仅解锁第一个账号。
-- 当当前账号时间轴推进到最后一个小时，且该账号在当前阶段小时下“微信/文章/发现”的未读全部清零，会解锁下一个账号，并显示顶部轻提示、在“我”Tab 显示红点提示。
+- 当当前账号在当前分支中已可见的聊天消息、文章和社交内容均已消费后，会解锁下一个账号，并显示顶部轻提示、在“我”Tab 显示红点提示。未满足 `require`、当前分支不可见的内容不阻塞解锁。
 - 解锁轻提示中的账号名使用该账号 `identityTimeline` 按生效时间排序后的第一个 `name`；没有 timeline 名称时回退到显式 `profile.name`，最后回退到账号 id。
 - 已解锁账号可在“我”中随时切换；阶段时间进度与已读状态按账号隔离。
 - 同一个账号内部推进到下一个阶段小时，如果相邻阶段时间跨满自然月或自然年，会显示 `过 N 月后` / `过 N 年后` 的顶部轻提示；账号解锁造成的不同账号阶段时间差不会触发该提示。
+- 当选择获得任意 `bad-end` 开头的 flag 后，只等待通过精确匹配的 `require-flag` / `require.flags` 解锁的聊天、文章和社交内容消费完成。聊天按每条消息的实际播放判定：最后一条关联消息显示后立刻播放关机效果并阻止交互，不会继续展示同会话后续普通消息。随后从 `resetAccount` 起重置该账号及其后续账号的进度，回到账号页并提示 `<resetInfo>`；所有账号入口可由玩家自行选择。若选择题会授予 `bad-end*` flag，必须配置有效的 `resetAccount`。
+- 当选择获得任意 `true-end` 开头的 flag 后，同样只等待精确匹配该 flag 的聊天、文章和社交内容消费完成。随后显示 `<endInfo>` 居中提示框，并将授予该 flag 的来源会话标记为已读；玩家点击“继续”后播放关机效果并返回账号页。真结局不重置任何进度、选择或账号解锁状态，同一 flag 在整个故事中只触发一次。
 
 ## 5.3 Build report
 
