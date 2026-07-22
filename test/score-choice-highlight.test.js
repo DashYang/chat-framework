@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { highlightEffectRuntimeSource } from "../src/highlight-effect.js";
 import { loadConversationFromMarkdown } from "../src/load-conversation.js";
+import { NodeProjectSource } from "../src/node-project-source.js";
 import { parseChatMarkdown } from "../src/parser.js";
 import { renderHtml } from "../src/renderer.js";
 import { renderWechatHubHtml } from "../src/multi-renderer.js";
@@ -138,6 +139,7 @@ test("invalid require scores fail the build instead of unlocking content", () =>
   try {
     assert.throws(
       () => loadConversationFromMarkdown(path.resolve("examples/chat.md"), {
+        source: new NodeProjectSource(),
         chatPath,
         profilePath: path.resolve("examples/profiles.yml")
       }),
@@ -173,7 +175,10 @@ Hello
 `);
 
   try {
-    const conversation = loadConversationFromMarkdown(markdownPath, { selfId: "alice" });
+    const conversation = loadConversationFromMarkdown(markdownPath, {
+      source: new NodeProjectSource(),
+      selfId: "alice"
+    });
     assert.deepEqual(conversation.chat.require, {
       score: 3,
       flags: ["met_bob"],

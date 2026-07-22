@@ -128,14 +128,17 @@ Format SDK 负责语义级往返。导入后再导出必须保留人物、消息
 
 ```ts
 interface ProjectSource {
-  list(path: string): Promise<ProjectEntry[]>;
-  exists(path: string): Promise<boolean>;
-  readText(path: string): Promise<string>;
-  readBinary(path: string): Promise<Uint8Array>;
+  list(path: string): ProjectEntry[];
+  exists(path: string): boolean;
+  stat(path: string): ProjectEntryStat;
+  readText(path: string): string;
+  readBinary(path: string): Uint8Array;
 }
 ```
 
-路径统一使用项目根目录下的 POSIX 相对路径，并拒绝 `..` 越界。初期实现：
+Shared Compiler 面向一次构建期间不可变的同步快照，以保证确定性。IndexedDB 等异步存储在编译前先将当前项目物化为 `MemoryProjectSource`；持久化 API 不进入 Compiler。
+
+路径统一使用 POSIX 语义。版本化项目限制在项目根目录内；Legacy Node Adapter 继续兼容现有 CLI 的相对和绝对磁盘路径。初期实现：
 
 - `MemoryProjectSource`：最小 Demo 和即时预览
 - `NodeProjectSource`：兼容当前 CLI
@@ -273,13 +276,13 @@ Studio 可以独立修改布局、交互和 Authoring Model，只要 Format SDK 
 
 ### Phase 0：架构解耦基线
 
-- 为现有单会话、Hub 和集合文档建立固定样例与行为测试
-- 引入 `ProjectSource` 和结构化诊断
-- 将文件读取从解析、归一化和渲染逻辑中分离
-- 让当前 CLI 通过 `NodeProjectSource` 调用共享入口
-- 保持现有命令、输入格式和页面行为不变
+- [x] 为现有单会话、Hub 和集合文档建立固定样例与行为测试
+- [x] 引入 `ProjectSource` 和结构化诊断
+- [x] 将文件读取从解析、归一化和渲染逻辑中分离
+- [x] 让当前 CLI 通过 `NodeProjectSource` 调用共享入口
+- [x] 保持现有命令、输入格式和页面行为不变
 
-完成标志：现有测试全部通过，Compiler 核心不直接依赖 `fs`。
+完成状态：已完成。Shared Compiler 可从 `MemoryProjectSource` 或 `NodeProjectSource` 构建单会话、Hub 和集合文档；核心及核心加载器不直接依赖 `fs`，跨 Source 输出一致性由测试固化。
 
 ### Phase 1：最小架构 Demo
 

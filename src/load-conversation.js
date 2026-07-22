@@ -1,22 +1,26 @@
-import fs from "fs";
-import path from "path";
 import { parseSimpleYaml } from "./yaml.js";
 import { parseChatMarkdown } from "./parser.js";
 import { resolveQuotes, resolveTimes } from "./time.js";
 import { annotateConversationMentions } from "./mentions.js";
 import { parseMarkdownArticle, renderArticleMarkdown } from "./article-renderer.js";
+import {
+  basenameProjectPath,
+  dirnameProjectPath,
+  resolveProjectPath
+} from "./project-path.js";
+import { assertProjectSource } from "./project-source.js";
 
 /**
- * Read UTF-8 text from disk.
+ * Read UTF-8 text from a project source.
  *
  * @param {string} filePath - Absolute or relative file path.
  * @returns {string} File content.
  *
  * @example
- * const text = readText('/tmp/a.md')
+ * const text = readText(source, '/tmp/a.md')
  */
-export function readText(filePath) {
-  return fs.readFileSync(filePath, "utf-8");
+export function readText(source, filePath) {
+  return assertProjectSource(source).readText(filePath);
 }
 
 /**
@@ -42,10 +46,7 @@ export function validateMessages(messages, profiles, context = {}) {
 }
 
 function formatPathForError(filePath) {
-  if (!filePath) return "";
-  const rel = path.relative(process.cwd(), filePath);
-  if (!rel || rel.startsWith("..")) return filePath;
-  return rel;
+  return String(filePath || "");
 }
 
 function buildUnknownSenderMessage(senderId, profiles, context = {}) {
@@ -263,7 +264,7 @@ function normalizeMoments(moments) {
 const ARTICLE_FILE_EXT_RE = /\.(ya?ml|md|markdown)$/i;
 
 function articleIdFromFileName(fileName) {
-  return path.basename(String(fileName || "")).replace(ARTICLE_FILE_EXT_RE, "");
+  return basenameProjectPath(String(fileName || "")).replace(ARTICLE_FILE_EXT_RE, "");
 }
 
 function normalizeArticle(id, parsed) {
@@ -294,29 +295,31 @@ function normalizeArticleRef(ref) {
     : value;
 }
 
-function loadProfilesFromDirectory(dirPath) {
+function loadProfilesFromDirectory(source, dirPath) {
   const users = {};
-  const files = fs
-    .readdirSync(dirPath)
-    .filter((name) => /\.(ya?ml)$/i.test(name))
+  const files = source
+    .list(dirPath)
+    .filter((entry) => entry.type === "file" && /\.(ya?ml)$/i.test(entry.name))
+    .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
 
   for (const fileName of files) {
     const id = fileName.replace(/\.(ya?ml)$/i, "");
-    const parsed = parseSimpleYaml(readText(path.join(dirPath, fileName)));
+    const parsed = parseSimpleYaml(readText(source, resolveProjectPath(dirPath, fileName)));
     users[id] = normalizeUserProfile(id, parsed);
   }
 
   return { users };
 }
 
-export function loadProfiles(profilePath) {
-  const stat = fs.statSync(profilePath);
+export function loadProfiles(profilePath, options = {}) {
+  const source = assertProjectSource(options.source);
+  const stat = source.stat(profilePath);
   if (stat.isDirectory()) {
-    return loadProfilesFromDirectory(profilePath);
+    return loadProfilesFromDirectory(source, profilePath);
   }
 
-  const parsed = parseSimpleYaml(readText(profilePath));
+  const parsed = parseSimpleYaml(readText(source, profilePath));
   const usersRaw = parsed.users || parsed;
   const users = {};
   for (const [id, profile] of Object.entries(usersRaw || {})) {
@@ -325,24 +328,25 @@ export function loadProfiles(profilePath) {
   return { users };
 }
 
-function loadArticlesFromDirectory(dirPath) {
-  if (!fs.existsSync(dirPath)) return {};
-  const stat = fs.statSync(dirPath);
+function loadArticlesFromDirectory(source, dirPath) {
+  if (!source.exists(dirPath)) return {};
+  const stat = source.stat(dirPath);
   if (!stat.isDirectory()) return {};
   const articles = {};
   const sources = {};
-  const files = fs
-    .readdirSync(dirPath)
-    .filter((name) => ARTICLE_FILE_EXT_RE.test(name))
+  const files = source
+    .list(dirPath)
+    .filter((entry) => entry.type === "file" && ARTICLE_FILE_EXT_RE.test(entry.name))
+    .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
 
   for (const fileName of files) {
     const id = articleIdFromFileName(fileName);
     if (Object.prototype.hasOwnProperty.call(articles, id)) {
-      throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${path.join(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
+      throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${resolveProjectPath(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
     }
-    const filePath = path.join(dirPath, fileName);
-    articles[id] = loadArticleFromFile(filePath, id);
+    const filePath = resolveProjectPath(dirPath, fileName);
+    articles[id] = loadArticleFromFile(source, filePath, id);
     sources[id] = filePath;
   }
   return articles;
@@ -376,8 +380,8 @@ function normalizeMarkdownArticle(articleKey, raw) {
   return normalizeArticle(articleKey, parsed);
 }
 
-function loadArticleFromFile(filePath, articleKey) {
-  const raw = readText(filePath);
+function loadArticleFromFile(source, filePath, articleKey) {
+  const raw = readText(source, filePath);
   if (/\.(md|markdown)$/i.test(filePath)) {
     return normalizeMarkdownArticle(articleKey, raw);
   }
@@ -385,7 +389,7 @@ function loadArticleFromFile(filePath, articleKey) {
   return normalizeArticle(articleKey, parsed);
 }
 
-function mergeExplicitOfficialArticles(target, profiles, baseDir) {
+function mergeExplicitOfficialArticles(source, target, profiles, baseDir) {
   const users = profiles?.users || {};
   for (const user of Object.values(users)) {
     const refs = Array.isArray(user?.__rawOfficialArticleRefs)
@@ -396,16 +400,16 @@ function mergeExplicitOfficialArticles(target, profiles, baseDir) {
       if (!ref || !isExplicitArticleFileRef(ref)) continue;
       const articleId = normalizeArticleRef(ref);
       if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
-      const filePath = path.resolve(baseDir, ref);
-      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      const filePath = resolveProjectPath(baseDir, ref);
+      if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
         throw new Error(`Official article file not found: ${ref}. Fix: check profile.officialArticles path relative to the build input folder, or use an existing article id.`);
       }
-      target[articleId] = loadArticleFromFile(filePath, articleId);
+      target[articleId] = loadArticleFromFile(source, filePath, articleId);
     }
   }
 }
 
-function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
+function mergeDocLinkCardArticles(source, target, messages, resourceRootDir) {
   for (const msg of messages) {
     if (msg.kind !== "link-card") continue;
     const card = msg.linkCard || {};
@@ -413,11 +417,11 @@ function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
     if (!docPath || !isExplicitArticleFileRef(docPath)) continue;
     const articleId = normalizeArticleRef(docPath);
     if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
-    const filePath = path.resolve(resourceRootDir, docPath);
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    const filePath = resolveProjectPath(resourceRootDir, docPath);
+    if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
       throw new Error(`link-card doc file not found: ${docPath}. Fix: check [link-card] doc/ref path relative to the markdown resource root.`);
     }
-    target[articleId] = loadArticleFromFile(filePath, articleId);
+    target[articleId] = loadArticleFromFile(source, filePath, articleId);
   }
 }
 
@@ -438,29 +442,30 @@ function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
  */
 export function loadConversationFromMarkdown(markdownPath, options = {}) {
   try {
-    const rootDir = path.dirname(markdownPath);
+    const source = assertProjectSource(options.source);
+    const rootDir = dirnameProjectPath(markdownPath);
     const resourceRootDir = options.resourceRootDir
-      ? path.resolve(options.resourceRootDir)
+      ? resolveProjectPath(".", options.resourceRootDir)
       : rootDir;
-    const md = readText(markdownPath);
+    const md = readText(source, markdownPath);
     const parsed = parseChatMarkdown(md);
 
     const profilePath = options.profilePath
-      ? path.resolve(options.profilePath)
-      : path.resolve(rootDir, parsed.frontmatter.profiles || "profiles.yml");
+      ? resolveProjectPath(".", options.profilePath)
+      : resolveProjectPath(rootDir, parsed.frontmatter.profiles || "profiles.yml");
     const chatPath = options.chatPath
-      ? path.resolve(options.chatPath)
-      : (parsed.frontmatter.chat ? path.resolve(rootDir, parsed.frontmatter.chat) : "");
+      ? resolveProjectPath(".", options.chatPath)
+      : (parsed.frontmatter.chat ? resolveProjectPath(rootDir, parsed.frontmatter.chat) : "");
 
     const articlesPath = options.articlesPath
-      ? path.resolve(options.articlesPath)
-      : path.resolve(rootDir, parsed.frontmatter.articles || "articles");
-    const profiles = options.profiles || loadProfiles(profilePath);
-    const profileStat = fs.statSync(profilePath);
-    const articles = loadArticlesFromDirectory(articlesPath);
-    mergeExplicitOfficialArticles(articles, profiles, resourceRootDir);
-    mergeDocLinkCardArticles(articles, parsed.messages, resourceRootDir);
-    const chatWrap = chatPath ? parseSimpleYaml(readText(chatPath)) : {};
+      ? resolveProjectPath(".", options.articlesPath)
+      : resolveProjectPath(rootDir, parsed.frontmatter.articles || "articles");
+    const profiles = options.profiles || loadProfiles(profilePath, { source });
+    const profileStat = source.stat(profilePath);
+    const articles = loadArticlesFromDirectory(source, articlesPath);
+    mergeExplicitOfficialArticles(source, articles, profiles, resourceRootDir);
+    mergeDocLinkCardArticles(source, articles, parsed.messages, resourceRootDir);
+    const chatWrap = chatPath ? parseSimpleYaml(readText(source, chatPath)) : {};
     const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
     if (!chat.require) {
       const frontmatterRequire = normalizeRequire(parsed.frontmatter.require);

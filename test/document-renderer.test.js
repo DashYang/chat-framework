@@ -163,10 +163,12 @@ test("buildDocument writes a standalone HTML page", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-framework-document-"));
   const inputPath = path.join(tempDir, "settings.yml");
   const outputPath = path.join(tempDir, "dist", "settings.html");
+  fs.mkdirSync(path.join(tempDir, "assets"));
+  fs.writeFileSync(path.join(tempDir, "assets", "noise.png"), "image", "utf-8");
   fs.writeFileSync(inputPath, `
 type: settings
 items:
-  - image: https://example.com/noise.png
+  - image: ./assets/noise.png
     name: 噪燃
     description: "**重点设定**"
 `, "utf-8");
@@ -177,6 +179,7 @@ items:
   const html = fs.readFileSync(outputPath, "utf-8");
   assert.match(html, /<!doctype html>/);
   assert.match(html, /重点设定/);
+  assert.match(html, /src="\.\.\/assets\/noise\.png"/);
   const scripts = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g), (match) => match[1]);
   assert.equal(scripts.length, 1);
   assert.doesNotThrow(() => new Function(scripts[0]));

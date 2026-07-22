@@ -152,7 +152,7 @@
 - 输出归一化会话对象
 
 关键接口：
-- `loadConversationFromMarkdown(markdownPath)`
+- `loadConversationFromMarkdown(markdownPath, { source, ...options })`
 
 ### 4.5 `src/renderer.js`
 
@@ -177,8 +177,8 @@
 ### 4.7 `src/build.js` 与 `src/build-folder.js`
 
 职责：
-- `build.js`：单会话页构建
-- `build-folder.js`：目录内多 md 构建成一个会话总览页
+- `build.js`：以 `NodeProjectSource` 调用共享 Compiler，写入单会话页面
+- `build-folder.js`：以 `NodeProjectSource` 调用共享 Compiler，写入会话总览页和打印报告
 
 ### 4.8 集合文档模块
 
@@ -189,29 +189,48 @@
 
 关键接口：
 - `parseDocumentYaml(rawYaml, options)`
-- `loadDocumentYaml(inputPath, outputPath)`
+- `loadDocumentYaml(inputPath, outputPath, { source })`
 - `renderDocumentHtml(document)`
 - `buildDocument(inputYaml, outputHtml)`
+
+### 4.9 项目源、共享 Compiler 与诊断
+
+相关文件：
+- `src/project-source.js`：定义 ProjectSource 能力并提供内存文件系统实现
+- `src/node-project-source.js`：封装 Node `fs`，作为 CLI 的磁盘适配器
+- `src/project-path.js`：提供环境无关的 POSIX 路径运算
+- `src/compiler.js`：统一编排单会话、Hub 和集合文档的加载、校验、归一化与渲染
+- `src/diagnostics.js`：定义结构化诊断、构建失败和结果校验
+- `src/story-config.js`：从 CLI 构建器中抽离剧情配置校验
+
+关键接口：
+- `compileSingleProject({ source, inputPath })`
+- `compileFolderProject({ source, inputDir })`
+- `compileDocumentProject({ source, inputPath, outputPath })`
+- `MemoryProjectSource` / `NodeProjectSource`
+- `requireBuildResult(result)`
+
+Shared Compiler 和核心加载器不直接依赖 Node `fs`；CLI 构建器仅负责选择 Node Adapter、写出文件和输出日志。
 
 ## 5. 渲染过程
 
 ### 5.1 单会话页渲染流程
 
-1. `build.js` 读取 `chat.md`
-2. `loadConversationFromMarkdown` 解析 `chat.md/profiles.yml/chat.yml`
+1. `build.js` 创建 `NodeProjectSource`
+2. `compileSingleProject` 通过 ProjectSource 加载 `chat.md/profiles.yml/chat.yml`
 3. `resolveTimes + resolveQuotes` 完成数据归一化
-4. `renderHtml` 生成完整 HTML
-5. 写入 `dist/*.html`
+4. `renderHtml` 生成完整 HTML 和结构化 BuildResult
+5. Node Adapter 校验结果并写入 `dist/*.html`
 
 ### 5.2 会话总览页渲染流程
 
-1. `build-folder.js` 扫描目录下所有 `*.md`
-2. 对每个 md 执行单会话加载与归一化
-3. 读取同目录 `ui.yml`（可选）
-4. 读取同目录 `story.yml`（可选）
+1. `build-folder.js` 创建 `NodeProjectSource`
+2. `compileFolderProject` 扫描目录下所有会话 Markdown
+3. 通过 ProjectSource 读取 profiles、articles、`ui.yml` 和 `story.yml`
+4. 对每个会话执行加载、校验与归一化
 5. `buildConversationModels` 生成列表视图模型
-6. `renderWechatHubHtml` 生成聚合页面
-7. 浏览器端 JS 执行回放、阶段时间推移、账号切换逻辑
+6. `renderWechatHubHtml` 生成聚合页面和 BuildResult
+7. Node Adapter 写入页面并打印构建报告
 
 ### 5.3 剧情页渲染流程
 
@@ -222,11 +241,12 @@
 
 ### 5.4 集合文档页渲染流程
 
-1. `build-document.js` 读取一个集合 YAML
-2. `document-loader.js` 校验顶层类型和每项字段，并将 Markdown 转换为安全 HTML
-3. 输入文件中的相对图片路径根据输出 HTML 位置重写
-4. `document-renderer.js` 根据人物、设定或时间线类型生成独立页面
-5. 写入指定的 `dist/documents/*.html` 或其他输出路径
+1. `build-document.js` 创建 `NodeProjectSource`
+2. `compileDocumentProject` 通过 ProjectSource 读取集合 YAML
+3. `document-loader.js` 校验顶层类型和每项字段，并将 Markdown 转换为安全 HTML
+4. 输入文件中的相对图片路径根据输出 HTML 位置重写
+5. `document-renderer.js` 根据人物、设定或时间线类型生成 BuildResult
+6. Node Adapter 写入指定的 `dist/documents/*.html` 或其他输出路径
 
 ## 6. 调用链路（调用电路）
 
@@ -234,13 +254,16 @@
 
 ```text
 CLI: node src/build.js
-  -> loadConversationFromMarkdown
+  -> NodeProjectSource
+  -> compileSingleProject
+    -> loadConversationFromMarkdown
       -> parseChatMarkdown
       -> parseSimpleYaml (profiles/chat)
       -> validateMessages
       -> resolveTimes
       -> resolveQuotes
-  -> renderHtml
+    -> renderHtml
+    -> BuildResult
   -> fs.writeFileSync
 ```
 
@@ -248,12 +271,14 @@ CLI: node src/build.js
 
 ```text
 CLI: node src/build-folder.js
-  -> listMarkdownFiles
-  -> loadConversationFromMarkdown (for each md)
-  -> loadUiConfig (ui.yml)
-  -> loadStoryConfig (story.yml)
-  -> buildConversationModels
-  -> renderWechatHubHtml
+  -> NodeProjectSource
+  -> compileFolderProject
+    -> listMarkdownFiles
+    -> loadConversationFromMarkdown (for each md)
+    -> load ui.yml / story.yml
+    -> buildConversationModels
+    -> renderWechatHubHtml
+    -> BuildResult + build report
   -> fs.writeFileSync
 ```
 
@@ -270,13 +295,16 @@ CLI: node src/build-folder.js
 
 ```text
 CLI: node src/build-document.js
-  -> loadDocumentYaml
+  -> NodeProjectSource
+  -> compileDocumentProject
+    -> loadDocumentYaml
       -> parseDocumentYaml
           -> yaml.safeLoad
           -> normalize characters/settings/timeline items
           -> renderArticleMarkdown / renderArticleMarkdownInline
           -> rebaseDocumentAsset
-  -> renderDocumentHtml
+    -> renderDocumentHtml
+    -> BuildResult
   -> fs.writeFileSync
 ```
 
@@ -306,6 +334,8 @@ open wechat-hub.html
 - 语言：`JavaScript`
 - 解析：聊天配置使用自研轻量 YAML，集合文档使用 `js-yaml`，正文使用 Markdown 解析
 - 渲染：字符串模板生成静态 HTML/CSS/JS
+- 编译输入：`ProjectSource` 同步快照；当前提供内存和 Node 磁盘适配器
+- 错误模型：Compiler 返回带错误码、路径和可选定位信息的结构化诊断
 - 持久化：浏览器 `localStorage`
 - 输出形态：纯静态文件（可 `file://` 或 HTTP 服务）
 
@@ -343,6 +373,7 @@ open wechat-hub.html
 - 可扩展性：通过 frontmatter 和 yaml 增量扩展
 - 可移植性：无外部依赖，生成产物为纯静态页面
 - 可维护性：按解析、归一化、渲染、构建分层
+- 环境解耦：Shared Compiler 不直接依赖文件系统，Node I/O 限制在 Adapter 和 CLI 层
 - 容错性：对缺失字段提供默认值与降级策略
 
 ## 9. 已知限制与后续建议
