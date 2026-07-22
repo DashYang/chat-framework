@@ -98,7 +98,7 @@ function loadOptionalConfig(source, inputDir, fileName, rootKey) {
   return parsed[rootKey] || {};
 }
 
-export function compileFolderProject({ source, inputDir }) {
+export function compileFolderProject({ source, inputDir, title: requestedTitle }) {
   try {
     assertProjectSource(source);
     const profilesPath = findProfilesPath(source, inputDir);
@@ -129,7 +129,7 @@ export function compileFolderProject({ source, inputDir }) {
       profiles
     }));
     const models = buildConversationModels(conversations);
-    const title = basenameProjectPath(inputDir);
+    const title = requestedTitle || basenameProjectPath(inputDir);
     const ui = loadOptionalConfig(source, inputDir, "ui.yml", "ui");
     const story = loadOptionalConfig(source, inputDir, "story.yml", "story");
     validateStoryConfig(story, models);

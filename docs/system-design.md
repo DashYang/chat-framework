@@ -61,7 +61,7 @@
 
 ### 3.1.1 可视化 Studio 与版本化项目格式
 
-`studio/` 提供 React + TypeScript + Vite 的单会话可视化创作界面。Studio 和渲染器不共享表单状态，而以 `specVersion: "2.0"` 的 Markdown/YAML 虚拟项目作为公开契约：
+`studio/` 提供 React + TypeScript + Vite 的多内容可视化创作界面。Studio 和渲染器不共享表单状态，而以 `specVersion: "3.0"` 的 Markdown/YAML 虚拟项目作为公开契约；加载旧 `2.0` Studio 草稿时自动迁移：
 
 - Authoring Model 只保存作品语义、稳定实体 ID 和资产引用
 - Format SDK 负责校验、序列化、解析与语义级往返
@@ -70,6 +70,14 @@
 - iframe 只接收编译后的独立 HTML；IndexedDB、撤销栈和面板状态不进入项目格式
 
 Phase 2 的 Studio 支持 IndexedDB 多项目自动保存、参与者与单会话编辑、文字/图片/链接卡片/状态/引用/撤回、三主题、图片资产、字段级诊断，以及 ZIP 项目包和独立 HTML 导出。ZIP 使用 `project.yml`、`profiles.yml`、`chat.yml`、`conversations/main.md` 和 `assets/`，重新导入时保证实体及引用语义一致。
+
+Phase 3/4 在此基础上增加共享人物库、多会话与 Hub、Conversation Editor、Social Editor 和 Article Editor。v3 项目包使用 `profiles.yml`、`conversations/*.md`、`chats/*.yml`、`articles/*.md`、`ui.yml` 与 `assets/`；朋友圈保存在所属人物 profile 中。作者统一引用人物 ID，发布时间、条件规则、资产和 Hub 消费状态沿用现有运行时语义。Studio 浏览器预览和 HTML 下载均调用 Folder Compiler。
+
+Phase 5/6 补齐人物 `identityTimeline`、设定集、事件时间线、选择分支、消息/会话/社交/文章条件、剧情账号顺序与结局配置。Studio 继续只生成公开格式：资料库写入 `documents/*.yml`，剧情写入 `story.yml`，选择与单句条件写入消息标签。网站导出使用相同 Shared Compiler 生成根 `index.html` 和各集合文档页面，连同 `assets/` 与资料库导航打包为可部署 ZIP；独立 HTML 与开放项目 ZIP 继续保留。
+
+桌面端 Studio 外壳约束为视口高度，中部编辑器独立滚动，右侧手机预览始终留在当前屏幕内。消息流默认只展示类型标签和单行内容摘要，按需展开单条消息的完整字段；新增消息自动展开，带诊断错误的折叠消息保留错误标记。
+
+Studio 同时内置一个由 `createStudioDemoProject()` 生成的全功能 Demo。它作为不可删除、刷新时恢复的产品能力基线；用户可复制后编辑。新增或调整 Studio 能力时，必须同步更新该 Demo 及其 Format SDK 覆盖测试，确保所有可视化能力都有可操作示例，并继续经过真实序列化、解析和 Shared Compiler 链路。
 
 
 ### 3.2 消息能力

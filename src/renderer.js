@@ -12,6 +12,10 @@ const choiceCss = `
 [data-theme="iterms"] .choice-option.selected{background:#0d1a12;border-color:var(--accent);color:var(--accent);box-shadow:0 0 8px rgba(0,255,65,.16)}
 `;
 
+const statusCss = `
+.end-tip{font-size:12px;color:var(--muted);text-align:center;margin:16px 0 4px}
+`;
+
 const WECHAT_EMOJI_MAP = {
   微笑: "🙂",
   撇嘴: "😒",
@@ -442,7 +446,7 @@ export function renderHtml(ctx) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(chatTitle)}</title>
-  <style>${theme.css}${choiceCss}</style>
+  <style>${theme.css}${choiceCss}${statusCss}</style>
 </head>
 <body data-theme="${escapeHtml(themeId)}">
   <main class="chat">

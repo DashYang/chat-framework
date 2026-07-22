@@ -44,13 +44,21 @@ npm run hooks:install
 - `dist/documents/characters.html`（人物集合文档）
 - `dist/documents/settings.html`（设定集合文档）
 - `dist/documents/timeline.html`（时间线集合文档）
-- `dist/studio/index.html`（可视化单会话创作 Studio）
+- `dist/studio/index.html`（可视化多内容创作 Studio）
 
 ## 可视化 Studio
 
-Studio 是完全静态的浏览器应用，作品草稿保存在当前浏览器的 IndexedDB。它支持多作品、自动保存、复制、撤销重做、消息拖拽排序、图片资源、结构化错误定位和实时 iframe 预览。
+Studio 是完全静态的浏览器应用，作品草稿保存在当前浏览器的 IndexedDB。Phase 0–6 已形成完整创作闭环：共享人物与身份时间线、多对话与 Hub、朋友圈、Markdown 文章、设定集、事件时间线、选择分支、计分/Flag 条件、账号推进与结局 Runtime、结构化引用校验，以及独立 HTML、开放项目 ZIP 和完整静态网站 ZIP。消息、朋友圈、文章和人物默认以“类型 + 单行关键摘要”紧凑显示，点击后展开完整编辑字段；Studio 统一使用“对话”称呼，与右侧预览一致。桌面端手机预览固定在当前视口内，外观面板可配置状态栏运营商文案。
+
+Studio 内置的“Studio 全功能 Demo”覆盖全部已开放能力。以后新增 Studio 功能时，必须同步更新 Demo 与 `test/format-sdk.test.js` 的覆盖断言。
+
+「依赖图」页签将关系拆成两张只读图：Flag 子页只显示 `内容 → Flag → 解锁内容` 并检测完整有向环；得分子页按账号/全局泳道计算每个 Require 的前向可达分数。两张图分别提供筛选、风险视图和节点定位，并提示断链 Flag、未消费 Flag、循环依赖、前向分数不足、作用域错配及恒真条件；它们都是纯派生视图，不改变项目格式。
 
 导出的项目 ZIP 是开放的 Markdown/YAML 项目，可重新导入 Studio；导出的独立 HTML 不需要 Studio 或服务端即可打开。浏览器预览和 Node 命令使用同一个 Shared Compiler，项目格式与 UI 实现可以独立演进。
+
+Studio 内置“Studio 全功能 Demo”项目，集中展示参与者资料与头像、单聊与群聊、多会话 Hub、收发文字、自动链接、引用、本地图片资产、链接卡片、撤回、状态消息、朋友圈、Markdown 文章、发布时间与条件、主题切换和生成文件链路。内置 Demo 是固定预览基线，刷新后恢复最新版；需要改写时先在作品栏复制。
+
+维护约定：以后每新增或调整一项 Studio 功能，必须同步更新 `createStudioDemoProject()` 和它在 `test/format-sdk.test.js` 中的覆盖断言，保证内置 Demo 始终可以展示全部 Studio 能力并通过真实 Shared Compiler 编译。
 
 ## 命令行安装
 

@@ -122,8 +122,17 @@ export function parseSimpleYaml(input) {
     }
 
     if (rest === "") {
-      current.container[key] = {};
-      stack.push({ indent, container: current.container[key], type: "object", lastKey: key });
+      let nextLine = "";
+      let nextIndent = -1;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        if (!lines[j].trim() || lines[j].trim().startsWith("#")) continue;
+        nextLine = lines[j].trim();
+        nextIndent = lines[j].match(/^\s*/)[0].length;
+        break;
+      }
+      const isArray = nextIndent > indent && nextLine.startsWith("- ");
+      current.container[key] = isArray ? [] : {};
+      stack.push({ indent, container: current.container[key], type: isArray ? "array" : "object", lastKey: isArray ? null : key });
       current.lastKey = key;
     } else {
       current.container[key] = parseScalar(rest);

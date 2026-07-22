@@ -191,7 +191,7 @@ story.yml
 根清单用于版本识别和入口发现，概念结构如下：
 
 ```yml
-specVersion: "2.0"
+specVersion: "3.0"
 project:
   id: demo-project
   title: 示例作品
@@ -308,29 +308,37 @@ Studio 可以独立修改布局、交互和 Authoring Model，只要 Format SDK 
 
 ### Phase 3：多会话与 Hub
 
-- 共享人物库、单聊、群聊和多个会话
-- Hub 页面与模块化站点导航
-- Conversation Editor 作为可注册内容模块
+- [x] 共享人物库、单聊、群聊和多个会话
+- [x] Hub 页面与模块化站点导航
+- [x] Conversation Editor 作为内容模块
+
+完成状态：已完成。Studio v3 Authoring Model 使用 `conversations[]`，每个会话保存稳定 ID、类型、视角账号与消息流；预览和独立 HTML 统一走 Folder Compiler 与现有 Hub Runtime。旧 v2 单会话草稿在加载时自动迁移。
 
 ### Phase 4：社交与文章
 
-- 增加 Social Editor 和 Article Editor
-- 作者统一引用人物 ID
-- 复用发布时间、条件、资产和消费状态语义
+- [x] 增加 Social Editor 和 Article Editor
+- [x] 作者统一引用人物 ID
+- [x] 复用发布时间、条件、资产和消费状态语义
+
+完成状态：已完成。朋友圈支持文字、多图、发布时间、分数/Flag 条件；文章支持标题、摘要、封面、附图、Markdown 正文、发布时间和条件。项目导出为标准 profile moments 与 `articles/*.md`，重新导入保持多会话、社交、文章和资产引用语义。
 
 ### Phase 5：人物、设定与时间线
 
-- 增加人物档案、设定集和时间线编辑器
-- 时间线参与者引用人物 ID
-- 完整网站增加资料库和跨内容导航
-- 现有独立集合文档继续作为单页导出目标
+- [x] 增加人物档案、设定集和时间线编辑器
+- [x] 时间线参与者引用人物 ID
+- [x] 完整网站增加资料库和跨内容导航
+- [x] 现有独立集合文档继续作为单页导出目标
+
+完成状态：已完成。人物编辑器支持随阶段时间切换名称、头像和简介的 `identityTimeline`；资料库支持设定集和事件时间线，事件参与者保存稳定人物 ID。完整网站 ZIP 包含 Hub、资料库索引、独立集合文档页面和双向导航。
 
 ### Phase 6：剧情与完整静态网站
 
-- 抽取条件、分支、阶段时间、消费状态和账号推进 Runtime
-- Studio 提供可视化规则编辑和引用校验
-- 支持完整 `index.html + assets` 网站包
-- 小型项目继续支持独立 HTML 导出
+- [x] 抽取条件、分支、阶段时间、消费状态和账号推进 Runtime
+- [x] Studio 提供可视化规则编辑和引用校验
+- [x] 支持完整 `index.html + assets` 网站包
+- [x] 小型项目继续支持独立 HTML 导出
+
+完成状态：已完成。Studio 可视化编辑选择分支、计分/Flag、会话与内容解锁条件、账号推进顺序及结局配置，并复用现有 Hub Runtime。校验覆盖人物、作者、消息引用、选择回复者、时间线参与者和剧情账号引用；导出同时提供独立 HTML、开放项目 ZIP 与可直接部署的网站 ZIP。
 
 ## 8. 最小 Demo 实现定义
 

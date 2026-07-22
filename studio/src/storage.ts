@@ -1,4 +1,5 @@
 import type { AuthoringProject, ProjectSummary } from "./types";
+import { normalizeAuthoringProject } from "../../src/format-sdk.js";
 
 const DB_NAME = "chat-framework-studio";
 const DB_VERSION = 1;
@@ -36,11 +37,34 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 
 export async function loadProject(id: string): Promise<AuthoringProject | null> {
   const row = await transact<StoredProject | undefined>("readonly", (store) => store.get(id));
-  return row?.project ? structuredClone(row.project) : null;
+  return row?.project ? normalizeAuthoringProject(row.project) as AuthoringProject : null;
 }
 
 export async function saveProject(project: AuthoringProject): Promise<void> {
-  await transact<IDBValidKey>("readwrite", (store) => store.put({ id: project.id, title: project.title, updatedAt: Date.now(), project }));
+  const normalized = normalizeAuthoringProject(project) as AuthoringProject;
+  await transact<IDBValidKey>("readwrite", (store) => store.put({ id: normalized.id, title: normalized.title, updatedAt: Date.now(), project: normalized }));
+}
+
+export async function syncBuiltinProject(project: AuthoringProject): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const request = store.get(project.id) as IDBRequest<StoredProject | undefined>;
+    request.onsuccess = () => {
+      const current = request.result;
+      store.put({
+        id: project.id,
+        title: project.title,
+        updatedAt: current?.updatedAt ?? Date.now(),
+        project
+      });
+    };
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+    tx.onabort = () => { db.close(); reject(tx.error); };
+  });
 }
 
 export async function removeProject(id: string): Promise<void> {
