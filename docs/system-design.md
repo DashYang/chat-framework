@@ -59,6 +59,18 @@
 - 会话总览页：`dist/wechat-hub.html`（一个页面聚合多个 md）
 - 剧情页：一个 HTML 页面串联多个会话总览场景，支持右滑进入下一幕
 
+### 3.1.1 可视化 Studio 与版本化项目格式
+
+`studio/` 提供 React + TypeScript + Vite 的单会话可视化创作界面。Studio 和渲染器不共享表单状态，而以 `specVersion: "2.0"` 的 Markdown/YAML 虚拟项目作为公开契约：
+
+- Authoring Model 只保存作品语义、稳定实体 ID 和资产引用
+- Format SDK 负责校验、序列化、解析与语义级往返
+- 浏览器在 Web Worker 中将虚拟文件物化为 `MemoryProjectSource`，调用 Shared Compiler
+- Node CLI 继续通过 `NodeProjectSource` 调用同一编译核心
+- iframe 只接收编译后的独立 HTML；IndexedDB、撤销栈和面板状态不进入项目格式
+
+Phase 2 的 Studio 支持 IndexedDB 多项目自动保存、参与者与单会话编辑、文字/图片/链接卡片/状态/引用/撤回、三主题、图片资产、字段级诊断，以及 ZIP 项目包和独立 HTML 导出。ZIP 使用 `project.yml`、`profiles.yml`、`chat.yml`、`conversations/main.md` 和 `assets/`，重新导入时保证实体及引用语义一致。
+
 
 ### 3.2 消息能力
 

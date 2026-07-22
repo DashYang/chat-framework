@@ -29,6 +29,9 @@ npm run build:stage-gap # 生成阶段时间跨度提示示例
 npm run build:document:characters # 生成人物集合文档
 npm run build:document:settings   # 生成设定集合文档
 npm run build:document:timeline   # 生成时间线集合文档
+npm run studio:dev                # 启动可视化 Studio 开发服务器
+npm run studio:build              # 构建 Studio 到 dist/studio/
+npm run studio:preview            # 本地预览 Studio 生产构建
 npm run hooks:install
 ```
 
@@ -41,6 +44,13 @@ npm run hooks:install
 - `dist/documents/characters.html`（人物集合文档）
 - `dist/documents/settings.html`（设定集合文档）
 - `dist/documents/timeline.html`（时间线集合文档）
+- `dist/studio/index.html`（可视化单会话创作 Studio）
+
+## 可视化 Studio
+
+Studio 是完全静态的浏览器应用，作品草稿保存在当前浏览器的 IndexedDB。它支持多作品、自动保存、复制、撤销重做、消息拖拽排序、图片资源、结构化错误定位和实时 iframe 预览。
+
+导出的项目 ZIP 是开放的 Markdown/YAML 项目，可重新导入 Studio；导出的独立 HTML 不需要 Studio 或服务端即可打开。浏览器预览和 Node 命令使用同一个 Shared Compiler，项目格式与 UI 实现可以独立演进。
 
 ## 命令行安装
 

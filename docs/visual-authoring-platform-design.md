@@ -286,23 +286,25 @@ Studio 可以独立修改布局、交互和 Authoring Model，只要 Format SDK 
 
 ### Phase 1：最小架构 Demo
 
-- 建立 React + TypeScript + Vite 静态应用
-- 实现最小 Authoring Model、Format SDK serializer 和 `MemoryProjectSource`
-- 可视化编辑参与者以及文字、图片消息
-- 生成真实 Markdown/YAML 虚拟项目
-- Browser Adapter 调用 Shared Compiler，iframe 展示结果
-- 下载独立 HTML，并可查看生成的规范文件
-- 将相同文件写入测试目录后可由 Node 入口构建
+- [x] 建立 React + TypeScript + Vite 静态应用
+- [x] 实现最小 Authoring Model、Format SDK serializer 和 `MemoryProjectSource`
+- [x] 可视化编辑参与者以及文字、图片消息
+- [x] 生成真实 Markdown/YAML 虚拟项目
+- [x] Browser Adapter 调用 Shared Compiler，iframe 展示结果
+- [x] 下载独立 HTML，并可查看生成的规范文件
+- [x] 将相同文件写入测试目录后可由 Node 入口构建
 
-完成标志：浏览器和 Node 对同一项目生成等价的聊天页面。
+完成状态：已完成。Studio 通过 Web Worker 把虚拟项目交给与 Node 相同的 Shared Compiler，预览与下载 HTML 使用同一编译结果。
 
 ### Phase 2：单会话产品 MVP
 
-- IndexedDB 多项目草稿、自动保存和项目复制
-- 正式资产库、上传图片和网络 URL
-- 消息卡片排序、撤销重做和字段级错误定位
-- 补齐引用、链接卡片、状态、撤回和现有三主题
-- 支持规范项目包导出和语义级重新导入
+- [x] IndexedDB 多项目草稿、自动保存和项目复制
+- [x] 正式资产库、上传图片和网络 URL
+- [x] 消息卡片排序、撤销重做和字段级错误定位
+- [x] 补齐引用、链接卡片、状态、撤回和现有三主题
+- [x] 支持规范项目包导出和语义级重新导入
+
+完成状态：已完成。格式契约固定为 `specVersion: "2.0"`；ZIP 项目包可语义级往返，资源以稳定 asset ID 管理，Studio 草稿和 UI 状态不进入公开格式。
 
 ### Phase 3：多会话与 Hub
 

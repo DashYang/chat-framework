@@ -11,13 +11,19 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
 GIT_ROOT="$(git rev-parse --show-toplevel)"
-PROJECT_REL="${PROJECT_DIR#${GIT_ROOT}/}"
+if [[ "$PROJECT_DIR" == "$GIT_ROOT" ]]; then
+  PROJECT_REL=""
+else
+  PROJECT_REL="${PROJECT_DIR#${GIT_ROOT}/}"
+fi
 
 ALL_STAGED="$(git diff --cached --name-only)"
 STAGED=""
 while IFS= read -r file; do
   [[ -z "$file" ]] && continue
-  if [[ "$file" == "$PROJECT_REL/"* ]]; then
+  if [[ -z "$PROJECT_REL" ]]; then
+    STAGED+="$file"$'\n'
+  elif [[ "$file" == "$PROJECT_REL/"* ]]; then
     STAGED+="${file#${PROJECT_REL}/}"$'\n'
   fi
 done <<< "$ALL_STAGED"
