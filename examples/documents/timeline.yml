@@ -1,0 +1,28 @@
+type: timeline
+title: "时间线"
+theme: "iterms"
+headerIndex: "03"
+footerText: "> END OF FILE"
+items:
+  - image: "https://picsum.photos/seed/archive-1963/460/240"
+    time: "1963"
+    description: |
+      焦原沟事件，饿死鬼复苏，周正被封印。
+    participants:
+      - "周正"
+      - "冯全"
+
+  - image: "https://picsum.photos/seed/archive-2000/460/240"
+    time: "2000"
+    description: |
+      总部成立十殿阎罗系统，开始系统化管理噪燃。
+    participants:
+      - "王教授"
+
+  - image: ""
+    time: "未来"
+    description: |
+      “扬戬计划”推进，壁垒与十殿对峙。
+    participants:
+      - "周正"
+      - "Mark"

@@ -590,7 +590,88 @@ story:
 - 未达到 `require` 的会话、小时消息、单句消息、文章和朋友圈不产生红点，也不阻塞阶段推进。
 - 达分后新解锁的历史内容会显示在对应列表或聊天记录中，但不会回退已经推进过的阶段。
 
-## 6. 完整示例
+## 6. 独立集合文档
+
+集合文档用于将人物、设定或时间线的多条结构化记录生成为独立 HTML 页面。它不依赖会话总览页、Profile、`officialArticles`、剧情解锁或已读进度。
+
+统一顶层格式：
+
+```yml
+type: characters
+title: "人物介绍"
+theme: "iterms"
+headerIndex: "01"
+footerText: "> END OF FILE"
+items: []
+```
+
+- `type`：必填，可选 `characters`、`settings`、`timeline`
+- `title`：可选；缺省时根据类型使用“人物介绍”“设定”或“时间线”
+- `theme`：可选 `wechat`、`paper`、`iterms`，默认 `iterms`
+- `headerIndex`：可选，控制页面右上角内容；默认按类型显示 `01`、`02` 或 `03`，空字符串表示隐藏
+- `footerText`：可选，控制页脚内容；默认 `> END OF FILE`，空字符串表示隐藏
+- `items`：必填且不能为空的对象数组，顺序即页面展示顺序
+
+### 6.1 人物集合
+
+```yml
+type: characters
+items:
+  - avatar: "./assets/zhou.png"
+    name: "周正"
+    identity: "联络员 / 观察者"
+    status: "**存活**"
+    description: |
+      退伍后进入职刑署，后成为**联络员**。
+```
+
+每项必须提供字符串类型的 `avatar/name/identity/status/description`。页面按头像、名字与身份、介绍、状态四栏展示。
+
+### 6.2 设定集合
+
+```yml
+type: settings
+items:
+  - image: "./assets/noise.png"
+    name: "噪燃"
+    description: |
+      具有**扩散性**的异常能量现象。
+```
+
+每项必须提供字符串类型的 `image/name/description`。
+
+### 6.3 时间线集合
+
+```yml
+type: timeline
+items:
+  - image: ""
+    time: "未来"
+    description: |
+      “扬戬计划”推进。
+    participants:
+      - "周正"
+      - "Mark"
+```
+
+每项必须提供 `time/description/participants`；`participants` 是非空姓名数组。`image` 可省略或使用空字符串，无图节点不会生成图片占位。
+
+### 6.4 Markdown 与构建
+
+- `description` 使用完整 Markdown，支持标题、列表、引用、表格、粗体、斜体、删除线、链接和图片
+- `identity/status/time` 使用行内 Markdown
+- 原始 HTML 默认禁用，链接继续使用现有安全规则
+- 相对图片路径以 YAML 文件目录为基准，并转换为对输出 HTML 有效的路径
+
+统一构建命令：
+
+```bash
+chat-framework build:document examples/documents/characters.yml dist/documents/characters.html
+chat-framework build:document examples/documents/settings.yml dist/documents/settings.html
+chat-framework build:document examples/documents/timeline.yml dist/documents/timeline.html
+```
+
+## 7. 完整示例
 
 请直接参考：
 - `examples/spec-demo/chat.md`
@@ -598,16 +679,21 @@ story:
 - `examples/spec-demo/chat.yml`
 - `examples/spec-demo/ui.yml`
 
-## 7. 路径解析规则
+集合文档示例：
+- `examples/documents/characters.yml`
+- `examples/documents/settings.yml`
+- `examples/documents/timeline.yml`
+
+## 8. 路径解析规则
 
 `chat-framework` 根据构建模式的不同，采用不同的路径解析逻辑。
 
-### 7.1 单文件构建 (`npm run build`)
+### 8.1 单文件构建 (`npm run build`)
 
 当对单个 Markdown 文件进行构建时：
 - Frontmatter 中的 `profiles`、`chat`、`articles` 等相对路径，均相对于该 **Markdown 文件所在的目录** 解析。
 
-### 7.2 文件夹构建 (`npm run build:folder`)
+### 8.2 文件夹构建 (`npm run build:folder`)
 
 当对整个文件夹进行构建（生成会话总览页）时：
 - 以下路径均相对于传入的 **`inputDir` 目录** 解析：
@@ -616,7 +702,11 @@ story:
     - `profiles` 中 `chatFiles` 列表里的 Markdown 路径。
     - `profiles` 中 `groupChats` 映射里的 YAML 路径。
 
-## 8. 常见错误与排查
+### 8.3 集合文档构建 (`build:document`)
+
+集合文档中的相对图片路径以输入 YAML 所在目录为基准。构建器会根据输出 HTML 的目录自动重写路径，但不会复制资源文件。
+
+## 9. 常见错误与排查
 
 - 首条消息使用了相对时间：改成绝对时间
 - `Unknown sender`：`chat.md` 的 `@senderId` 不在 `profiles.yml`

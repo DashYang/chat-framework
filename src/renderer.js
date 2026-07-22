@@ -682,8 +682,8 @@ export function renderHtml(ctx) {
         else articleCover.removeAttribute('data-preview-src');
         articleText.innerHTML = article.html || renderMarkdown(article.text);
         articleImages.innerHTML = (article.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
-        articleModal.scrollTop = 0;
         articleModal.classList.add('show');
+        articleModal.scrollTop = 0;
         articleModal.setAttribute('aria-hidden', 'false');
       }
       function closeArticle() {

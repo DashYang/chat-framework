@@ -180,6 +180,19 @@
 - `build.js`：单会话页构建
 - `build-folder.js`：目录内多 md 构建成一个会话总览页
 
+### 4.8 集合文档模块
+
+相关文件：
+- `src/document-loader.js`：使用完整 YAML 解析器读取人物、设定和时间线集合，校验类型与必填字段，渲染 Markdown 字段并重写相对资源路径
+- `src/document-renderer.js`：按 `characters`、`settings`、`timeline` 生成独立静态 HTML，复用现有主题和图片预览能力
+- `src/build-document.js`：连接加载与渲染流程，负责创建输出目录和写入 HTML
+
+关键接口：
+- `parseDocumentYaml(rawYaml, options)`
+- `loadDocumentYaml(inputPath, outputPath)`
+- `renderDocumentHtml(document)`
+- `buildDocument(inputYaml, outputHtml)`
+
 ## 5. 渲染过程
 
 ### 5.1 单会话页渲染流程
@@ -206,6 +219,14 @@
 2. 对每个场景独立调用 `normalizeUi` 和嵌入会话数据
 3. 生成包含全部场景 payload 的 HTML
 4. 浏览器端 JS 按场景索引展示当前场景，监听右滑事件切换
+
+### 5.4 集合文档页渲染流程
+
+1. `build-document.js` 读取一个集合 YAML
+2. `document-loader.js` 校验顶层类型和每项字段，并将 Markdown 转换为安全 HTML
+3. 输入文件中的相对图片路径根据输出 HTML 位置重写
+4. `document-renderer.js` 根据人物、设定或时间线类型生成独立页面
+5. 写入指定的 `dist/documents/*.html` 或其他输出路径
 
 ## 6. 调用链路（调用电路）
 
@@ -245,7 +266,21 @@ CLI: node src/build-folder.js
   -> 场景进度通过 localStorage 持久化
 ```
 
-### 6.4 浏览器端运行时
+### 6.4 集合文档页
+
+```text
+CLI: node src/build-document.js
+  -> loadDocumentYaml
+      -> parseDocumentYaml
+          -> yaml.safeLoad
+          -> normalize characters/settings/timeline items
+          -> renderArticleMarkdown / renderArticleMarkdownInline
+          -> rebaseDocumentAsset
+  -> renderDocumentHtml
+  -> fs.writeFileSync
+```
+
+### 6.5 浏览器端运行时
 
 ```text
 open wechat-hub.html
@@ -269,7 +304,7 @@ open wechat-hub.html
 
 - 运行时：`Node.js`（ESM）
 - 语言：`JavaScript`
-- 解析：自研轻量 YAML + Markdown 消息语法解析
+- 解析：聊天配置使用自研轻量 YAML，集合文档使用 `js-yaml`，正文使用 Markdown 解析
 - 渲染：字符串模板生成静态 HTML/CSS/JS
 - 持久化：浏览器 `localStorage`
 - 输出形态：纯静态文件（可 `file://` 或 HTTP 服务）
@@ -291,6 +326,11 @@ open wechat-hub.html
 - `profiles`
 - `chat`
 - `messages`
+
+集合文档对象核心字段：
+- `type`（`characters` / `settings` / `timeline`）
+- `title` / `theme` / `headerIndex` / `footerText`
+- `items`（按类型归一化后的文档条目）
 
 总览页持久化状态核心字段：
 - `stageSeen` / `messagePlayed` / `momentSeen` / `articleSeen`

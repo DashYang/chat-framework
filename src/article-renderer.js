@@ -42,16 +42,24 @@ articleMarkdown.renderer.rules.link_open = (tokens, idx, options, env, self) => 
 
 articleMarkdown.renderer.rules.image = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
-  const src = safeMarkdownLink(token.attrGet("src"));
+  const rawSrc = token.attrGet("src");
+  const resolvedSrc = typeof env?.resolveImageUrl === "function"
+    ? env.resolveImageUrl(rawSrc)
+    : rawSrc;
+  const src = safeMarkdownLink(resolvedSrc);
   attrSet(token, "src", src);
   attrSet(token, "data-preview-src", src);
   attrJoin(token, "class", "previewable-image");
   return defaultImage(tokens, idx, options, env, self);
 };
 
-export function renderArticleMarkdown(markdown) {
-  const html = articleMarkdown.render(String(markdown || ""));
+export function renderArticleMarkdown(markdown, options = {}) {
+  const html = articleMarkdown.render(String(markdown || ""), options);
   return `<div class="article-markdown">${html}</div>`;
+}
+
+export function renderArticleMarkdownInline(markdown, options = {}) {
+  return articleMarkdown.renderInline(String(markdown || ""), options);
 }
 
 export function parseMarkdownArticle(raw) {

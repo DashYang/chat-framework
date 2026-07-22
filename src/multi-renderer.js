@@ -1462,8 +1462,8 @@ export function renderWechatHubHtml(input) {
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
-      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
+      articleModal.scrollTop = 0;
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
     }
@@ -1490,8 +1490,8 @@ export function renderWechatHubHtml(input) {
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
-      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
+      articleModal.scrollTop = 0;
       articleModal.setAttribute('aria-hidden', 'false');
       if (homeTabbar) homeTabbar.style.display = 'none';
     }
@@ -3888,8 +3888,8 @@ ${highlightEffectRuntimeSource()}
       else articleCover.removeAttribute('data-preview-src');
       articleText.innerHTML = a.html || renderMarkdown(a.text || "");
       articleImages.innerHTML = (a.images || []).map((url) => '<img src="' + esc(url) + '" data-preview-src="' + esc(url) + '" alt="image"/>').join('');
-      articleModal.scrollTop = 0;
       articleModal.classList.add('show');
+      articleModal.scrollTop = 0;
       articleModal.setAttribute('aria-hidden', 'false');
     }
     function closeArticle() {

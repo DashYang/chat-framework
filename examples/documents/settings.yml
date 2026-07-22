@@ -1,0 +1,21 @@
+type: settings
+title: "设定"
+theme: "iterms"
+headerIndex: "02"
+footerText: "> END OF FILE"
+items:
+  - image: "https://picsum.photos/seed/archive-noise-burn/180/180"
+    name: "噪燃"
+    description: |
+      无法以人类科学解释的能量现象，具有**扩散性**，
+      会影响物质、生命及智能体。
+
+  - image: "https://picsum.photos/seed/archive-noise-source/180/180"
+    name: "噪源"
+    description: |
+      噪燃的源头，各文化称呼不同，本质为异常信息或存在。
+
+  - image: "https://picsum.photos/seed/archive-domain/180/180"
+    name: "噪域"
+    description: |
+      封锁区域，隔绝噪燃的扩散。

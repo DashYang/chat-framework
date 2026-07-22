@@ -6,6 +6,7 @@
 
 - **单会话页 (Single Conversation Page)**: 支持引用、图片、链接卡片、语音、撤回等全量微信特性，可作为独立页面分享。
 - **会话总览页 (Conversation Hub)**: 聚合多会话、朋友圈、文章列表。支持 **账号推进 (Account Progression)** 与 **阶段时间 (Stage Time)** 驱动的沉浸式互动体验。
+- **集合文档页 (Collection Document Page)**: 将人物、设定或时间线集合 YAML 生成为独立档案页面，介绍文字支持 Markdown。
 - **阶段时间 (Stage Time)**: 位于总览页顶部的状态栏中心时间。它不是操作系统时间或现实时钟，而是页面内部的剧情阶段时间；在运行过程中会随当前账号的阶段推进而更新。
 
 ## License
@@ -25,6 +26,9 @@ npm run build:paper     # 生成单会话页 (paper 主题)
 npm run build:folder    # 生成会话总览页 (dist/wechat-hub.html)
 npm run build:showcase  # 生成全功能预览基线
 npm run build:stage-gap # 生成阶段时间跨度提示示例
+npm run build:document:characters # 生成人物集合文档
+npm run build:document:settings   # 生成设定集合文档
+npm run build:document:timeline   # 生成时间线集合文档
 npm run hooks:install
 ```
 
@@ -34,6 +38,9 @@ npm run hooks:install
 - `dist/wechat-hub.html`（会话总览页）
 - `dist/showcase-wechat-hub.html`（全功能预览基线）
 - `dist/stage-gap.html`（阶段时间跨度提示示例）
+- `dist/documents/characters.html`（人物集合文档）
+- `dist/documents/settings.html`（设定集合文档）
+- `dist/documents/timeline.html`（时间线集合文档）
 
 ## 命令行安装
 
@@ -50,12 +57,35 @@ npm link
 chat-framework build examples/chat.md dist/index.html
 chat-framework build:folder examples/showcase dist/showcase-wechat-hub.html
 chat-framework build-folder examples/showcase dist/showcase-wechat-hub.html
+chat-framework build:document examples/documents/characters.yml dist/documents/characters.html
 chat-framework help
 ```
 
 `npm link` 创建的是全局命令到当前项目的 symlink。后续更新 `chat-framework` 的代码后，命令会直接使用最新本地版本，不需要重新 `npm link`。只有移动项目目录、删除 link、修改命令名或换机器时，才需要重新 link。
 
 `build:folder` 成功后会默认输出 build report：账号/会话/文章/朋友圈/阶段小时摘要、单聊标题来源，以及每个账号下 `聊天 / 文档 / 社交 / 总计` 的文字数。文字数按可读文本字符估算，不统计 URL、资源路径、HTML 标签和内部 id。
+
+## 独立集合文档
+
+集合文档是独立的 YAML 文件，不依赖 Hub、Profile 或 `officialArticles`。顶层 `type` 支持 `characters`、`settings`、`timeline`，`theme` 可选 `wechat`、`paper`、`iterms`，默认 `iterms`。
+
+```yml
+type: characters
+title: "人物介绍"
+headerIndex: "01"
+footerText: "> END OF FILE"
+items:
+  - avatar: "./assets/zhou.png"
+    name: "周正"
+    identity: "联络员 / 观察者"
+    status: "**存活**"
+    description: |
+      退伍后进入职刑署，后成为**联络员**。
+```
+
+`description` 支持标题、列表、引用、表格、粗体、斜体、删除线、链接和图片；原始 HTML 默认禁用。图片相对路径以 YAML 所在目录为基准，并在构建时自动转换为对输出 HTML 有效的路径。完整示例见 `examples/documents/`。
+
+`headerIndex` 控制页面右上角内容，`footerText` 控制页脚内容；两者均可写任意文本，配置为空字符串时隐藏对应区域。
 
 ## Markdown 格式
 

@@ -12,7 +12,7 @@ test("article bold text renders as a strong element", () => {
   assert.doesNotMatch(html, /<strong>普通文字/);
 });
 
-test("every article entry resets its shared reader scroll position", () => {
+test("every article entry shows the shared reader before resetting its scroll position", () => {
   const singleHtml = renderHtml({
     frontmatter: {},
     profiles: { users: { alice: { name: "Alice" } } },
@@ -20,7 +20,11 @@ test("every article entry resets its shared reader scroll position", () => {
     messages: []
   });
   const hubHtml = renderWechatHubHtml({ conversations: [] });
+  const showThenReset = /articleModal\.classList\.add\('show'\);\s+articleModal\.scrollTop = 0/g;
+  const resetWhileHidden = /articleModal\.scrollTop = 0;\s+articleModal\.classList\.add\('show'\)/g;
 
-  assert.match(singleHtml, /articleModal\.scrollTop = 0/);
-  assert.equal((hubHtml.match(/articleModal\.scrollTop = 0/g) || []).length, 2);
+  assert.equal((singleHtml.match(showThenReset) || []).length, 1);
+  assert.equal((hubHtml.match(showThenReset) || []).length, 2);
+  assert.doesNotMatch(singleHtml, resetWhileHidden);
+  assert.doesNotMatch(hubHtml, resetWhileHidden);
 });

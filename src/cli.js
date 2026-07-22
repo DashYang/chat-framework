@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 // Usage:
 //   chat-framework build <input.md> <output.html>
 //   chat-framework build:folder <input-folder> <output.html>
+//   chat-framework build:document <input.yml> <output.html>
 // Root semantics:
 //   build -> relative frontmatter paths (profiles/chat/articles) resolve from the markdown file directory
 //   build:folder -> profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from inputDir
@@ -20,12 +21,14 @@ Usage:
   chat-framework build <input.md> <output.html>
   chat-framework build:folder <input-folder> <output.html>
   chat-framework build-folder <input-folder> <output.html>
+  chat-framework build:document <input.yml> <output.html>
   chat-framework help
 
 Commands:
   build         Build a single chat markdown file into an HTML page.
   build:folder  Build a conversation hub from a folder project.
   build-folder  Alias for build:folder.
+  build:document Build a characters/settings/timeline YAML document.
   help          Show this help message.
 
 Path semantics:
@@ -33,6 +36,8 @@ Path semantics:
                 resolve from the input markdown file's directory.
   build:folder  profiles/, profiles.yml, articles/, ui.yml, story.yml,
                 chatFiles, and groupChats resolve from the input folder.
+  build:document Relative image paths resolve from the YAML file directory
+                 and are rebased for the output HTML location.
 
 Local install:
   cd /Users/dash/workspace/chat-framework
@@ -89,6 +94,23 @@ async function run() {
         mod.buildFolder(input, output);
       } else {
         throw new Error("buildFolder not found in build-folder.js");
+      }
+      return;
+    }
+
+    if (cmd === "build:document") {
+      const [_, input, output] = argv;
+      if (!input || !output) {
+        console.error("Usage: chat-framework build:document <input.yml> <output.html>");
+        console.error("Document image paths resolve from the input YAML file directory.");
+        console.error("Run chat-framework help for more details.");
+        process.exit(1);
+      }
+      const mod = await import(path.join(__dirname, "build-document.js"));
+      if (typeof mod.buildDocument === "function") {
+        mod.buildDocument(input, output);
+      } else {
+        throw new Error("buildDocument not found in build-document.js");
       }
       return;
     }

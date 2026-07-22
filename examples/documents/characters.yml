@@ -1,0 +1,26 @@
+type: characters
+title: "人物介绍"
+theme: "iterms"
+headerIndex: "01"
+footerText: "> END OF FILE"
+items:
+  - avatar: "https://picsum.photos/seed/archive-zhou/180/180"
+    name: "周正"
+    identity: "联络员 / 观察者"
+    status: "**存活**"
+    description: |
+      退伍后进入职刑署，后成为**联络员**，后期成为双鬼者。
+
+  - avatar: "https://picsum.photos/seed/archive-feng/180/180"
+    name: "冯全"
+    identity: "资深观察者"
+    status: "状态极差"
+    description: |
+      资深观察者，长期参与噪燃事件调查。
+
+  - avatar: "https://picsum.photos/seed/archive-mark/180/180"
+    name: "Mark"
+    identity: "管理层"
+    status: "存活"
+    description: |
+      公司管理层，后觉醒良知。

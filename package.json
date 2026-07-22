@@ -15,12 +15,16 @@
     "build:folder": "node src/build-folder.js examples/multi dist/wechat-hub.html",
     "build:showcase": "node src/build-folder.js examples/showcase dist/showcase-wechat-hub.html",
     "build:stage-gap": "node src/build-folder.js examples/stage-gap dist/stage-gap.html",
+    "build:document:characters": "node src/build-document.js examples/documents/characters.yml dist/documents/characters.html",
+    "build:document:settings": "node src/build-document.js examples/documents/settings.yml dist/documents/settings.html",
+    "build:document:timeline": "node src/build-document.js examples/documents/timeline.yml dist/documents/timeline.html",
     "req:gen": "bash scripts/generate-requirement-doc.sh",
     "req:check": "bash scripts/check-doc-sync.sh",
     "hooks:install": "bash scripts/install-hooks.sh"
   },
   "dependencies": {
     "gray-matter": "^4.0.3",
+    "js-yaml": "^3.14.2",
     "markdown-it": "^14.2.0"
   }
 }
