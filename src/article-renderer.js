@@ -1,4 +1,4 @@
-import matter from "gray-matter";
+import yaml from "js-yaml";
 import MarkdownIt from "markdown-it";
 
 const articleMarkdown = new MarkdownIt({
@@ -63,9 +63,15 @@ export function renderArticleMarkdownInline(markdown, options = {}) {
 }
 
 export function parseMarkdownArticle(raw) {
-  const parsed = matter(String(raw || ""));
+  const source = String(raw || "").replace(/\r\n/g, "\n");
+  if (!source.startsWith("---\n")) {
+    return { data: {}, content: source };
+  }
+  const match = source.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
+  if (!match) throw new Error("Article frontmatter not closed with ---");
+  const parsed = yaml.safeLoad(match[1]) || {};
   return {
-    data: parsed.data && typeof parsed.data === "object" ? parsed.data : {},
-    content: parsed.content || ""
+    data: parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {},
+    content: source.slice(match[0].length)
   };
 }

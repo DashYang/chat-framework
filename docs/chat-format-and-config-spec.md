@@ -1,6 +1,6 @@
 # 聊天记录 Markdown 与配置规范（v1.0）
 
-本文档定义 `chat-framework` 的输入格式，包含：
+本文档定义 `chat-maker` 的输入格式，包含：
 - 聊天内容文件：`chat.md`
 - 发送者配置：`profiles.yml`
 - 会话配置：`chat.yml`
@@ -9,7 +9,7 @@
 
 ## 1. 核心概念与渲染产品
 
-`chat-framework` 提供三类主要的渲染产物：
+`chat-maker` 提供三类主要的渲染产物：
 
 1. **单会话页 (Single Conversation Page)**:
    - 对应 `npm run build`。
@@ -532,7 +532,9 @@ ui:
     battery: "31%"
   topTitle: "微信"
   theme: "wechat"
-  persistKey: "chat_framework_seen_v1"
+  bgm:
+    type: "heartbeat"
+  persistKey: "chat_maker_seen_v1"
   debug: false
 ```
 
@@ -542,7 +544,9 @@ ui:
 - `statusBar.battery`：状态栏电量文案
 - `topTitle`：总览页主界面标题（默认“微信”）
 - `theme`：总览页主题，可选 `wechat`（默认）、`iterms`（绿黑终端风格）。`paper` 主题仅单会话页可用
-- `persistKey`：回放完成状态的本地存储键（默认 `"chat_framework_seen_v1"`）
+- `bgm.type`：背景音乐类型。`heartbeat`（默认）使用 Runtime 内置心跳声；`audio` 使用自定义音频
+- `bgm.src`：`type: audio` 时必填，可使用网络音频 URL、相对路径或编译器支持的数据 URL。自定义音频在首次用户交互后开始并循环播放；消息中的 `[heartbeat:n]` 不会改变其音量或节奏
+- `persistKey`：回放完成状态的本地存储键（默认 `"chat_maker_seen_v1"`）
 - `debug`：是否输出 `[chat-debug]` 运行时日志（默认 `false`；设为 `true` 时启用）
 
 ## 5.2 story.yml 规范（账号推进/切换）
@@ -556,6 +560,8 @@ story:
   favicon: "assets/game-icon.png"
   resetInfo: "前缘尽灭，再入轮回"
   resetAccount: "protagonist"
+  resetLabel: "重置内容"
+  resetConfirmText: "将清除本段故事的游玩进度。"
   endInfo: "尘埃落定。"
 ```
 
@@ -565,6 +571,8 @@ story:
 - `favicon`：可选的网站图标 URL 或路径，会输出为 HTML 的 `link rel="icon"`。相对路径以生成 HTML 所在目录解析，构建不会复制资源。
 - `resetInfo`：可选的坏结局提示正文，默认值为“前缘尽灭，再入轮回”。
 - `resetAccount`：可选的坏结局重置起点，必须是 `accountOrder` 中的账号；设置 `resetInfo` 或 `resetAccount` 时必须提供有效的 `resetAccount`。
+- `resetLabel`：账号页重置按钮文案，默认值为“重置内容”。
+- `resetConfirmText`：点击重置按钮后，确认框标题下方的提示文案；默认说明会移除分数、奖励和后续账号解锁，但不会影响内容文件。
 - `endInfo`：可选的真结局提示正文，默认值为“故事至此，圆满落幕。”；不要求配置 `resetAccount`。
 
 运行时行为：
@@ -666,9 +674,9 @@ items:
 统一构建命令：
 
 ```bash
-chat-framework build:document examples/documents/characters.yml dist/documents/characters.html
-chat-framework build:document examples/documents/settings.yml dist/documents/settings.html
-chat-framework build:document examples/documents/timeline.yml dist/documents/timeline.html
+chat-maker build:document examples/documents/characters.yml dist/documents/characters.html
+chat-maker build:document examples/documents/settings.yml dist/documents/settings.html
+chat-maker build:document examples/documents/timeline.yml dist/documents/timeline.html
 ```
 
 ## 7. 完整示例
@@ -686,7 +694,7 @@ chat-framework build:document examples/documents/timeline.yml dist/documents/tim
 
 ## 8. 路径解析规则
 
-`chat-framework` 根据构建模式的不同，采用不同的路径解析逻辑。
+`chat-maker` 根据构建模式的不同，采用不同的路径解析逻辑。
 
 ### 8.1 单文件构建 (`npm run build`)
 

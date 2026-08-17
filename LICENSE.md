@@ -1,6 +1,6 @@
 # License
 
-Required Notice: Copyright (c) 2026 chat-framework contributors.
+Required Notice: Copyright (c) 2026 chat-maker contributors.
 
 ## Noncommercial Use
 

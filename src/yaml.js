@@ -98,7 +98,8 @@ export function parseSimpleYaml(input) {
     const key = parseKey(line.slice(0, idx));
     const rest = line.slice(idx + 1).trim();
 
-    if (rest === "|" || rest === ">") {
+    const blockStyle = rest.match(/^([|>])([+-])?$/);
+    if (blockStyle) {
       const blockLines = [];
       let blockIndent = null;
       let j = i + 1;
@@ -113,17 +114,29 @@ export function parseSimpleYaml(input) {
         if (blockIndent === null) blockIndent = blockLineIndent;
         blockLines.push(blockRaw.slice(Math.min(blockIndent, blockRaw.length)));
       }
-      current.container[key] = rest === ">"
+      const blockValue = blockStyle[1] === ">"
         ? blockLines.join("\n").replace(/\n(?!\n)/g, " ")
         : blockLines.join("\n");
+      current.container[key] = blockStyle[2] === "+"
+        ? `${blockValue}\n`
+        : blockValue;
       current.lastKey = key;
       i = j - 1;
       continue;
     }
 
     if (rest === "") {
-      current.container[key] = {};
-      stack.push({ indent, container: current.container[key], type: "object", lastKey: key });
+      let nextLine = "";
+      let nextIndent = -1;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        if (!lines[j].trim() || lines[j].trim().startsWith("#")) continue;
+        nextLine = lines[j].trim();
+        nextIndent = lines[j].match(/^\s*/)[0].length;
+        break;
+      }
+      const isArray = nextIndent > indent && nextLine.startsWith("- ");
+      current.container[key] = isArray ? [] : {};
+      stack.push({ indent, container: current.container[key], type: isArray ? "array" : "object", lastKey: isArray ? null : key });
       current.lastKey = key;
     } else {
       current.container[key] = parseScalar(rest);

@@ -1,0 +1,9 @@
+ui:
+  statusBar:
+    carrier: 中国移动
+  topTitle: 最后一碗海龟汤
+  theme: wechat
+  bgm:
+    type: audio
+    src: ./assets/noise_bgm.wav
+  persistKey: chat_maker_studio_studio-feature-demo

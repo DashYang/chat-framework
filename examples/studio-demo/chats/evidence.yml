@@ -1,0 +1,9 @@
+chat:
+  type: group
+  self: waiter
+  title: 海难旧档案
+  require:
+    score: 1
+    flags:
+      - case-open
+    scope: global

@@ -120,9 +120,12 @@ function finalizeDraftMessage(drafts, usedIds, autoIdRef, senderId, timeRaw, tag
   if (requireScoreTag) {
     msg.require = { ...(msg.require || {}), ...parseRequireScoreTag(requireScoreTag) };
   }
-  const requireFlagTag = tags.find((t) => t.startsWith("require-flag:"));
-  if (requireFlagTag) {
-    msg.require = { ...(msg.require || {}), ...parseRequireFlagTag(requireFlagTag) };
+  const requireFlagTags = tags.filter((t) => t.startsWith("require-flag:"));
+  if (requireFlagTags.length) {
+    msg.require = {
+      ...(msg.require || {}),
+      flags: Array.from(new Set(requireFlagTags.flatMap((tag) => parseRequireFlagTag(tag).flags)))
+    };
   }
 
   drafts.push(enrichAutoLinkCard(msg));

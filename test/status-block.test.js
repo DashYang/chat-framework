@@ -57,6 +57,7 @@ test("status keeps the centered, avatar-free rendering in both page types", () =
   const hubHtml = renderWechatHubHtml({ conversations: [{ id: "c1", ...context }] });
 
   assert.match(singleHtml, /<div class="end-tip">系统处理中<\/div>/);
+  assert.match(singleHtml, /\.end-tip\{font-size:12px;color:var\(--muted\);text-align:center;margin:16px 0 4px\}/);
   assert.doesNotMatch(singleHtml, /<article class="msg self"/);
   assert.match(hubHtml, /if \(msg\.kind === 'status'\)/);
 });

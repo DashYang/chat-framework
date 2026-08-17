@@ -1,8 +1,12 @@
-import fs from "fs";
-import path from "path";
 import yaml from "js-yaml";
 
 import { renderArticleMarkdown, renderArticleMarkdownInline } from "./article-renderer.js";
+import {
+  dirnameProjectPath,
+  relativeProjectPath,
+  resolveProjectPath
+} from "./project-path.js";
+import { assertProjectSource } from "./project-source.js";
 
 const DOCUMENT_TYPES = new Set(["characters", "settings", "timeline"]);
 const THEMES = new Set(["wechat", "paper", "iterms"]);
@@ -22,8 +26,7 @@ function isObject(value) {
 }
 
 function fail(inputPath, message) {
-  const shown = path.relative(process.cwd(), inputPath) || inputPath;
-  throw new Error(`${shown}: ${message}`);
+  throw new Error(`${inputPath}: ${message}`);
 }
 
 function requireString(item, field, inputPath, index, { allowEmpty = false } = {}) {
@@ -57,8 +60,8 @@ export function rebaseDocumentAsset(raw, inputPath, outputPath) {
   if (!value || isExternalOrAbsoluteUrl(value)) return value;
   const { pathname, suffix } = splitPathSuffix(value);
   if (!pathname) return value;
-  const absolute = path.resolve(path.dirname(inputPath), pathname);
-  let relative = path.relative(path.dirname(outputPath), absolute).split(path.sep).join("/");
+  const absolute = resolveProjectPath(dirnameProjectPath(inputPath), pathname);
+  let relative = relativeProjectPath(dirnameProjectPath(outputPath), absolute);
   if (!relative.startsWith(".")) relative = `./${relative}`;
   return relative + suffix;
 }
@@ -158,7 +161,9 @@ export function parseDocumentYaml(rawYaml, { inputPath = "document.yml", outputP
   try {
     parsed = yaml.safeLoad(String(rawYaml || ""));
   } catch (error) {
-    fail(inputPath, `invalid YAML: ${error.message}`);
+    const wrapped = new Error(`${inputPath}: invalid YAML: ${error.message}`);
+    wrapped.mark = error.mark;
+    throw wrapped;
   }
   const base = normalizeBase(parsed, inputPath);
   const normalizeItem = base.type === "characters"
@@ -173,10 +178,11 @@ export function parseDocumentYaml(rawYaml, { inputPath = "document.yml", outputP
   return { ...base, items };
 }
 
-export function loadDocumentYaml(inputPath, outputPath) {
-  const absoluteInput = path.resolve(inputPath);
-  const absoluteOutput = path.resolve(outputPath);
-  const raw = fs.readFileSync(absoluteInput, "utf-8");
+export function loadDocumentYaml(inputPath, outputPath, options = {}) {
+  const source = assertProjectSource(options.source);
+  const absoluteInput = resolveProjectPath(".", inputPath);
+  const absoluteOutput = resolveProjectPath(".", outputPath);
+  const raw = source.readText(absoluteInput);
   return parseDocumentYaml(raw, {
     inputPath: absoluteInput,
     outputPath: absoluteOutput

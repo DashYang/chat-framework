@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chat Maker Timeline"
+  short_description: "Summarize chat-maker stories by day"
+  default_prompt: "Use $chat-maker-timeline to summarize these chat-maker conversations into a day-level timeline."

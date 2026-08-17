@@ -2,16 +2,21 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { loadDocumentYaml } from "./document-loader.js";
-import { renderDocumentHtml } from "./document-renderer.js";
+import { compileDocumentProject } from "./compiler.js";
+import { requireBuildResult } from "./diagnostics.js";
+import { NodeProjectSource } from "./node-project-source.js";
 
 export function buildDocument(inputYaml, outputHtml) {
-  const document = loadDocumentYaml(inputYaml, outputHtml);
-  const html = renderDocumentHtml(document);
+  const result = requireBuildResult(compileDocumentProject({
+    source: new NodeProjectSource(),
+    inputPath: path.resolve(inputYaml),
+    outputPath: path.resolve(outputHtml)
+  }));
   fs.mkdirSync(path.dirname(outputHtml), { recursive: true });
-  fs.writeFileSync(outputHtml, html, "utf-8");
+  fs.writeFileSync(outputHtml, result.html, "utf-8");
   console.log(`Built document: ${outputHtml}`);
-  console.log(`Type: ${document.type}; entries: ${document.items.length}`);
+  console.log(`Type: ${result.metadata.documentType}; entries: ${result.metadata.itemCount}`);
+  return result;
 }
 
 function main() {

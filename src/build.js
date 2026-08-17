@@ -1,32 +1,29 @@
 import fs from "fs";
 import path from "path";
-import { loadConversationFromMarkdown } from "./load-conversation.js";
-import { renderHtml } from "./renderer.js";
+import { compileSingleProject } from "./compiler.js";
+import { requireBuildResult } from "./diagnostics.js";
+import { NodeProjectSource } from "./node-project-source.js";
 
 /**
  * Build one chat markdown into one HTML page.
  *
  * @param {string} inputMd - Chat markdown file path.
  * @param {string} outputHtml - Output HTML path.
- * @returns {void}
+ * @returns {Record<string, unknown>} Structured build result.
  *
  * @example
  * buildSingle('examples/chat.md', 'dist/index.html')
  */
 export function buildSingle(inputMd, outputHtml) {
-  const conv = loadConversationFromMarkdown(inputMd);
-
-  const html = renderHtml({
-    frontmatter: conv.frontmatter,
-    profiles: conv.profiles,
-    articles: conv.articles,
-    chat: conv.chat,
-    messages: conv.messages
-  });
+  const result = requireBuildResult(compileSingleProject({
+    source: new NodeProjectSource(),
+    inputPath: inputMd
+  }));
 
   fs.mkdirSync(path.dirname(outputHtml), { recursive: true });
-  fs.writeFileSync(outputHtml, html, "utf-8");
+  fs.writeFileSync(outputHtml, result.html, "utf-8");
   console.log(`Built: ${outputHtml}`);
+  return result;
 }
 
 /**

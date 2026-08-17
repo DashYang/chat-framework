@@ -1,22 +1,108 @@
-import fs from "fs";
-import path from "path";
 import { parseSimpleYaml } from "./yaml.js";
 import { parseChatMarkdown } from "./parser.js";
 import { resolveQuotes, resolveTimes } from "./time.js";
 import { annotateConversationMentions } from "./mentions.js";
 import { parseMarkdownArticle, renderArticleMarkdown } from "./article-renderer.js";
+import {
+  basenameProjectPath,
+  dirnameProjectPath,
+  relativeProjectPath,
+  resolveProjectPath
+} from "./project-path.js";
+import { assertProjectSource } from "./project-source.js";
 
 /**
- * Read UTF-8 text from disk.
+ * Read UTF-8 text from a project source.
  *
  * @param {string} filePath - Absolute or relative file path.
  * @returns {string} File content.
  *
  * @example
- * const text = readText('/tmp/a.md')
+ * const text = readText(source, '/tmp/a.md')
  */
-export function readText(filePath) {
-  return fs.readFileSync(filePath, "utf-8");
+export function readText(source, filePath) {
+  return assertProjectSource(source).readText(filePath);
+}
+
+const EXTERNAL_RESOURCE_RE = /^(?:[a-z][a-z\d+.-]*:|\/\/|#|\/)/i;
+
+function rebaseResourceReference(value, sourceDir, resourceRootDir) {
+  const reference = String(value || "").trim();
+  if (!reference || EXTERNAL_RESOURCE_RE.test(reference)) return reference;
+  const targetPath = resolveProjectPath(sourceDir, reference);
+  return relativeProjectPath(resourceRootDir, targetPath);
+}
+
+function rebaseResourceList(value, sourceDir, resourceRootDir) {
+  if (Array.isArray(value)) {
+    return value.map((item) => rebaseResourceReference(item, sourceDir, resourceRootDir));
+  }
+  return value ? rebaseResourceReference(value, sourceDir, resourceRootDir) : value;
+}
+
+function rebaseProfileResources(profile, sourceDir, resourceRootDir) {
+  profile.avatar = rebaseResourceReference(profile.avatar, sourceDir, resourceRootDir);
+  profile.identityTimeline = (profile.identityTimeline || []).map((entry) => ({
+    ...entry,
+    ...(entry.avatar !== undefined
+      ? { avatar: rebaseResourceReference(entry.avatar, sourceDir, resourceRootDir) }
+      : {})
+  }));
+  profile.moments = Object.fromEntries(Object.entries(profile.moments || {}).map(([id, moment]) => {
+    if (!moment || typeof moment !== "object" || Array.isArray(moment)) return [id, moment];
+    return [id, {
+      ...moment,
+      ...(moment.image !== undefined
+        ? { image: rebaseResourceReference(moment.image, sourceDir, resourceRootDir) }
+        : {}),
+      ...(moment.images !== undefined
+        ? { images: rebaseResourceList(moment.images, sourceDir, resourceRootDir) }
+        : {})
+    }];
+  }));
+  return profile;
+}
+
+function rebaseArticleResources(article, sourceDir, resourceRootDir) {
+  const resolveImageUrl = (value) => rebaseResourceReference(value, sourceDir, resourceRootDir);
+  return {
+    ...article,
+    cover: resolveImageUrl(article.cover),
+    images: rebaseResourceList(article.images, sourceDir, resourceRootDir),
+    html: renderArticleMarkdown(article.text, { resolveImageUrl })
+  };
+}
+
+function rebaseMessageResources(messages, sourceDir, resourceRootDir) {
+  for (const message of messages) {
+    if (message.imageUrl !== undefined) {
+      message.imageUrl = rebaseResourceReference(message.imageUrl, sourceDir, resourceRootDir);
+    }
+    if (message.audioUrl !== undefined) {
+      message.audioUrl = rebaseResourceReference(message.audioUrl, sourceDir, resourceRootDir);
+    }
+    if (message.linkCard?.image !== undefined) {
+      message.linkCard.image = rebaseResourceReference(message.linkCard.image, sourceDir, resourceRootDir);
+    }
+    if (message.articleCard) {
+      message.articleCard.cover = rebaseResourceReference(message.articleCard.cover, sourceDir, resourceRootDir);
+      message.articleCard.images = rebaseResourceList(message.articleCard.images, sourceDir, resourceRootDir);
+    }
+    if (message.contactCard?.avatar !== undefined) {
+      message.contactCard.avatar = rebaseResourceReference(message.contactCard.avatar, sourceDir, resourceRootDir);
+    }
+  }
+  return messages;
+}
+
+function rebaseChatResources(chat, sourceDir, resourceRootDir) {
+  if (chat.avatar !== undefined) {
+    chat.avatar = rebaseResourceReference(chat.avatar, sourceDir, resourceRootDir);
+  }
+  if (chat.groupInfo?.avatar !== undefined) {
+    chat.groupInfo.avatar = rebaseResourceReference(chat.groupInfo.avatar, sourceDir, resourceRootDir);
+  }
+  return chat;
 }
 
 /**
@@ -42,10 +128,7 @@ export function validateMessages(messages, profiles, context = {}) {
 }
 
 function formatPathForError(filePath) {
-  if (!filePath) return "";
-  const rel = path.relative(process.cwd(), filePath);
-  if (!rel || rel.startsWith("..")) return filePath;
-  return rel;
+  return String(filePath || "");
 }
 
 function buildUnknownSenderMessage(senderId, profiles, context = {}) {
@@ -263,7 +346,7 @@ function normalizeMoments(moments) {
 const ARTICLE_FILE_EXT_RE = /\.(ya?ml|md|markdown)$/i;
 
 function articleIdFromFileName(fileName) {
-  return path.basename(String(fileName || "")).replace(ARTICLE_FILE_EXT_RE, "");
+  return basenameProjectPath(String(fileName || "")).replace(ARTICLE_FILE_EXT_RE, "");
 }
 
 function normalizeArticle(id, parsed) {
@@ -294,55 +377,70 @@ function normalizeArticleRef(ref) {
     : value;
 }
 
-function loadProfilesFromDirectory(dirPath) {
+function loadProfilesFromDirectory(source, dirPath, resourceRootDir) {
   const users = {};
-  const files = fs
-    .readdirSync(dirPath)
-    .filter((name) => /\.(ya?ml)$/i.test(name))
+  const files = source
+    .list(dirPath)
+    .filter((entry) => entry.type === "file" && /\.(ya?ml)$/i.test(entry.name))
+    .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
 
   for (const fileName of files) {
     const id = fileName.replace(/\.(ya?ml)$/i, "");
-    const parsed = parseSimpleYaml(readText(path.join(dirPath, fileName)));
-    users[id] = normalizeUserProfile(id, parsed);
+    const filePath = resolveProjectPath(dirPath, fileName);
+    const parsed = parseSimpleYaml(readText(source, filePath));
+    users[id] = rebaseProfileResources(
+      normalizeUserProfile(id, parsed),
+      dirnameProjectPath(filePath),
+      resourceRootDir
+    );
   }
 
   return { users };
 }
 
-export function loadProfiles(profilePath) {
-  const stat = fs.statSync(profilePath);
+export function loadProfiles(profilePath, options = {}) {
+  const source = assertProjectSource(options.source);
+  const resourceRootDir = options.resourceRootDir !== undefined
+    ? resolveProjectPath(".", options.resourceRootDir)
+    : dirnameProjectPath(profilePath);
+  const stat = source.stat(profilePath);
   if (stat.isDirectory()) {
-    return loadProfilesFromDirectory(profilePath);
+    return loadProfilesFromDirectory(source, profilePath, resourceRootDir);
   }
 
-  const parsed = parseSimpleYaml(readText(profilePath));
+  const parsed = parseSimpleYaml(readText(source, profilePath));
   const usersRaw = parsed.users || parsed;
   const users = {};
   for (const [id, profile] of Object.entries(usersRaw || {})) {
-    users[id] = normalizeUserProfile(id, profile);
+    users[id] = rebaseProfileResources(
+      normalizeUserProfile(id, profile),
+      dirnameProjectPath(profilePath),
+      resourceRootDir
+    );
   }
   return { users };
 }
 
-function loadArticlesFromDirectory(dirPath) {
-  if (!fs.existsSync(dirPath)) return {};
-  const stat = fs.statSync(dirPath);
+function loadArticlesFromDirectory(source, dirPath, resourceRootDir) {
+  if (!source.exists(dirPath)) return {};
+  const stat = source.stat(dirPath);
   if (!stat.isDirectory()) return {};
   const articles = {};
   const sources = {};
-  const files = fs
-    .readdirSync(dirPath)
-    .filter((name) => ARTICLE_FILE_EXT_RE.test(name))
+  const files = source
+    .list(dirPath)
+    .filter((entry) => entry.type === "file" && ARTICLE_FILE_EXT_RE.test(entry.name))
+    .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
 
   for (const fileName of files) {
     const id = articleIdFromFileName(fileName);
     if (Object.prototype.hasOwnProperty.call(articles, id)) {
-      throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${path.join(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
+      throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${resolveProjectPath(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
     }
-    const filePath = path.join(dirPath, fileName);
-    articles[id] = loadArticleFromFile(filePath, id);
+    const filePath = resolveProjectPath(dirPath, fileName);
+    articles[id] = loadArticleFromFile(source, filePath, id, resourceRootDir);
     sources[id] = filePath;
   }
   return articles;
@@ -376,16 +474,15 @@ function normalizeMarkdownArticle(articleKey, raw) {
   return normalizeArticle(articleKey, parsed);
 }
 
-function loadArticleFromFile(filePath, articleKey) {
-  const raw = readText(filePath);
-  if (/\.(md|markdown)$/i.test(filePath)) {
-    return normalizeMarkdownArticle(articleKey, raw);
-  }
-  const parsed = parseSimpleYaml(raw);
-  return normalizeArticle(articleKey, parsed);
+function loadArticleFromFile(source, filePath, articleKey, resourceRootDir = dirnameProjectPath(filePath)) {
+  const raw = readText(source, filePath);
+  const article = /\.(md|markdown)$/i.test(filePath)
+    ? normalizeMarkdownArticle(articleKey, raw)
+    : normalizeArticle(articleKey, parseSimpleYaml(raw));
+  return rebaseArticleResources(article, dirnameProjectPath(filePath), resourceRootDir);
 }
 
-function mergeExplicitOfficialArticles(target, profiles, baseDir) {
+function mergeExplicitOfficialArticles(source, target, profiles, baseDir) {
   const users = profiles?.users || {};
   for (const user of Object.values(users)) {
     const refs = Array.isArray(user?.__rawOfficialArticleRefs)
@@ -396,16 +493,16 @@ function mergeExplicitOfficialArticles(target, profiles, baseDir) {
       if (!ref || !isExplicitArticleFileRef(ref)) continue;
       const articleId = normalizeArticleRef(ref);
       if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
-      const filePath = path.resolve(baseDir, ref);
-      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      const filePath = resolveProjectPath(baseDir, ref);
+      if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
         throw new Error(`Official article file not found: ${ref}. Fix: check profile.officialArticles path relative to the build input folder, or use an existing article id.`);
       }
-      target[articleId] = loadArticleFromFile(filePath, articleId);
+      target[articleId] = loadArticleFromFile(source, filePath, articleId, baseDir);
     }
   }
 }
 
-function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
+function mergeDocLinkCardArticles(source, target, messages, resourceRootDir) {
   for (const msg of messages) {
     if (msg.kind !== "link-card") continue;
     const card = msg.linkCard || {};
@@ -413,11 +510,11 @@ function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
     if (!docPath || !isExplicitArticleFileRef(docPath)) continue;
     const articleId = normalizeArticleRef(docPath);
     if (Object.prototype.hasOwnProperty.call(target, articleId)) continue;
-    const filePath = path.resolve(resourceRootDir, docPath);
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    const filePath = resolveProjectPath(resourceRootDir, docPath);
+    if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
       throw new Error(`link-card doc file not found: ${docPath}. Fix: check [link-card] doc/ref path relative to the markdown resource root.`);
     }
-    target[articleId] = loadArticleFromFile(filePath, articleId);
+    target[articleId] = loadArticleFromFile(source, filePath, articleId, resourceRootDir);
   }
 }
 
@@ -438,30 +535,36 @@ function mergeDocLinkCardArticles(target, messages, resourceRootDir) {
  */
 export function loadConversationFromMarkdown(markdownPath, options = {}) {
   try {
-    const rootDir = path.dirname(markdownPath);
-    const resourceRootDir = options.resourceRootDir
-      ? path.resolve(options.resourceRootDir)
+    const source = assertProjectSource(options.source);
+    const rootDir = dirnameProjectPath(markdownPath);
+    const resourceRootDir = options.resourceRootDir !== undefined
+      ? resolveProjectPath(".", options.resourceRootDir)
       : rootDir;
-    const md = readText(markdownPath);
+    const md = readText(source, markdownPath);
     const parsed = parseChatMarkdown(md);
+    rebaseMessageResources(parsed.messages, rootDir, resourceRootDir);
 
     const profilePath = options.profilePath
-      ? path.resolve(options.profilePath)
-      : path.resolve(rootDir, parsed.frontmatter.profiles || "profiles.yml");
+      ? resolveProjectPath(".", options.profilePath)
+      : resolveProjectPath(rootDir, parsed.frontmatter.profiles || "profiles.yml");
     const chatPath = options.chatPath
-      ? path.resolve(options.chatPath)
-      : (parsed.frontmatter.chat ? path.resolve(rootDir, parsed.frontmatter.chat) : "");
+      ? resolveProjectPath(".", options.chatPath)
+      : (parsed.frontmatter.chat ? resolveProjectPath(rootDir, parsed.frontmatter.chat) : "");
 
     const articlesPath = options.articlesPath
-      ? path.resolve(options.articlesPath)
-      : path.resolve(rootDir, parsed.frontmatter.articles || "articles");
-    const profiles = options.profiles || loadProfiles(profilePath);
-    const profileStat = fs.statSync(profilePath);
-    const articles = loadArticlesFromDirectory(articlesPath);
-    mergeExplicitOfficialArticles(articles, profiles, resourceRootDir);
-    mergeDocLinkCardArticles(articles, parsed.messages, resourceRootDir);
-    const chatWrap = chatPath ? parseSimpleYaml(readText(chatPath)) : {};
-    const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
+      ? resolveProjectPath(".", options.articlesPath)
+      : resolveProjectPath(rootDir, parsed.frontmatter.articles || "articles");
+    const profiles = options.profiles || loadProfiles(profilePath, { source, resourceRootDir });
+    const profileStat = source.stat(profilePath);
+    const articles = loadArticlesFromDirectory(source, articlesPath, resourceRootDir);
+    mergeExplicitOfficialArticles(source, articles, profiles, resourceRootDir);
+    mergeDocLinkCardArticles(source, articles, parsed.messages, resourceRootDir);
+    const chatWrap = chatPath ? parseSimpleYaml(readText(source, chatPath)) : {};
+    const chat = rebaseChatResources(
+      normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId),
+      chatPath ? dirnameProjectPath(chatPath) : rootDir,
+      resourceRootDir
+    );
     if (!chat.require) {
       const frontmatterRequire = normalizeRequire(parsed.frontmatter.require);
       if (frontmatterRequire) chat.require = frontmatterRequire;

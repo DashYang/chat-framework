@@ -24,6 +24,8 @@ test("bad-ending story config requires a reset account in account order", () => 
   );
   assert.throws(() => validateStoryConfig({ title: 1 }), /story\.title must be a string/);
   assert.throws(() => validateStoryConfig({ favicon: 1 }), /story\.favicon must be a string/);
+  assert.throws(() => validateStoryConfig({ resetLabel: 1 }), /story\.resetLabel must be a string/);
+  assert.throws(() => validateStoryConfig({ resetConfirmText: 1 }), /story\.resetConfirmText must be a string/);
 });
 
 test("hub uses optional story branding in the document head", () => {
@@ -36,6 +38,13 @@ test("hub uses optional story branding in the document head", () => {
   assert.match(html, /<title>我的互动故事<\/title>/);
   assert.match(html, /<link rel="icon" href="assets\/game-icon\.png\?x=1&amp;y=2" \/>/);
   assert.doesNotMatch(renderWechatHubHtml({ title: "folder-default", conversations: [] }), /<link rel="icon"/);
+});
+
+test("hub can start directly in the account view", () => {
+  const html = renderWechatHubHtml({ conversations: [], startInAccountView: true });
+
+  assert.match(html, /"startInAccountView":true/);
+  assert.match(html, /if \(payload\.startInAccountView\) showAccountView\(\);/);
 });
 
 test("true-ending config accepts true-end flags without a reset account", () => {
@@ -66,13 +75,26 @@ test("hub runtime contains bad-ending completion, reset, and configured notice f
   assert.match(html, /phone\.inert = true/);
   assert.match(html, /markMessagePlayed\(conversationId, msg\);[\s\S]*?if \(startBadEndingIfReady\(\)\) return;/);
   assert.match(html, /resetInfo/);
-  assert.match(html, /饮用孟婆汤/);
+  assert.match(html, /function configuredResetLabel\(\)/);
+  assert.match(html, /重置内容/);
   assert.match(html, /饮用孟婆汤忘却“' \+ name \+ '”的旧事/);
   assert.match(html, />饮用<\/button>/);
   const runtimeScript = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map((match) => match[1])
     .find((source) => source.includes("function startBadEndingIfReady"));
   assert.doesNotThrow(() => new Function(runtimeScript));
+});
+
+test("hub uses the configured account reset label", () => {
+  const html = renderWechatHubHtml({
+    story: { accountOrder: ["wo"], resetLabel: "重新体验", resetConfirmText: "会清除当前章节的全部进度。" },
+    conversations: []
+  });
+
+  assert.match(html, /重新体验/);
+  assert.match(html, /会清除当前章节的全部进度。/);
+  assert.match(html, /esc\(configuredResetLabel\(\)\)/);
+  assert.match(html, /configuredResetConfirmText\(\)/);
 });
 
 test("hub runtime contains true-ending notice, persistence, and continuation flow", () => {
@@ -87,6 +109,8 @@ test("hub runtime contains true-ending notice, persistence, and continuation flo
   assert.match(html, /function startTrueEndingIfReady\(\)/);
   assert.match(html, /function continueTrueEnding\(\)/);
   assert.match(html, /trueEndingHandled/);
+  assert.match(html, /new CustomEvent\('chat-maker:progress'/);
+  assert.match(html, /trueEndingCompleted: Object\.keys\(trueEndingHandled\)/);
   assert.match(html, /trueEndingPending/);
   assert.match(html, /function registerTrueEndingPending\(flags, conversationId, messageId\)/);
   assert.match(html, /return 'global\|' \+ String\(flag \|\| ''\)/);

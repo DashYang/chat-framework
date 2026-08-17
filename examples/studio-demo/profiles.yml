@@ -1,0 +1,63 @@
+users:
+  waiter:
+    name: 周屿
+    avatar: ./assets/avatar-waiter.svg
+    bio: 临海餐厅服务生，也是案件的第一目击者。
+    moments:
+      closing-notice:
+        publishAt: '2026-07-18 20:05:00'
+        author: '@waiter'
+        text: 临海餐厅今晚暂停营业。那位客人只喝了一口汤，反复确认食材后便匆匆离开。小票和当晚菜单都已交给警方。
+        images:
+          - ./assets/restaurant-receipt.svg
+        require:
+          score: 1
+          flags: [case-open]
+          scope: global
+    officialArticles:
+      - ./articles/rescue-clipping.md
+    chatFiles:
+      - conversations/incident.md
+      - conversations/evidence.md
+    groupChats:
+      conversations/incident.md: chats/incident.yml
+      conversations/evidence.md: chats/evidence.yml
+  survivor:
+    identityTimeline:
+      '2012-06-01':
+        name: 二副陈默
+        avatar: ./assets/avatar-sailor.svg
+        bio: 远洋客轮“白鸥号”二副。
+      '2026-01-01':
+        name: 陈默
+        avatar: ./assets/avatar-survivor.svg
+        bio: 离开大海多年的海难幸存者。
+    moments:
+      crew-photo-post:
+        publishAt: '2026-07-19 09:10:00'
+        author: '@survivor'
+        text: 十四年了，我一直不敢再看这张照片。海风会带走痕迹，却带不走那句谎话。
+        images:
+          - ./assets/crew-photo.svg
+    officialArticles:
+      - ./articles/unsent-log.md
+    chatFiles:
+      - conversations/memory.md
+    groupChats:
+      conversations/memory.md: chats/memory.yml
+  solver:
+    name: 解谜者
+    avatar: ./assets/avatar-solver.svg
+    bio: 读完全部线索后回答最后一问。
+    chatFiles:
+      - conversations/answer.md
+    groupChats:
+      conversations/answer.md: chats/answer.yml
+  detective:
+    name: 林警官
+    avatar: ./assets/avatar-detective.svg
+    bio: 负责调查餐厅客人死亡事件。
+  host:
+    name: 汤主
+    avatar: ./assets/avatar-host.svg
+    bio: 整理线索并主持最终问答。

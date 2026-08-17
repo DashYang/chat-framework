@@ -1,6 +1,6 @@
 ---
 name: chat-record-converter
-description: 将原始聊天记录、朋友圈与文章素材转换为 chat-framework 所需的 chat.md、profiles.yml、chat.yml、ui.yml、story.yml、profiles/*.yml、articles/*.md（兼容 articles/*.yml），并自动补齐时间、引用、会话配置与总览页消费状态语义。
+description: 将原始聊天记录、朋友圈与文章素材转换为 chat-maker 所需的 chat.md、profiles.yml、chat.yml、ui.yml、story.yml、profiles/*.yml、articles/*.md（兼容 articles/*.yml），并自动补齐时间、引用、会话配置与总览页消费状态语义。
 ---
 
 # Chat Record Converter
@@ -14,7 +14,7 @@ description: 将原始聊天记录、朋友圈与文章素材转换为 chat-fram
 - “把微信群聊天导出转成项目格式”
 - “把这份对话日志生成 chat.md + 配置”
 - “在这个已有项目里新增一段对话”
-- “把新聊天追加到现有 chat-framework 项目”
+- “把新聊天追加到现有 chat-maker 项目”
 
 输入可以是：
 - 文本聊天记录

@@ -1,4 +1,4 @@
-# chat-framework (MVP)
+# chat-maker (MVP)
 
 根据 `chat.md` 生成类似微信聊天记录网页（单会话页），或将多个 `md` 聚合为功能完备的会话总览页（Conversation Hub）。
 
@@ -20,7 +20,7 @@
 ## 运行
 
 ```bash
-cd /Users/dash/workspace/chat-framework
+cd /Users/dash/workspace/chat-maker
 npm run build           # 生成单会话页 (dist/index.html)
 npm run build:paper     # 生成单会话页 (paper 主题)
 npm run build:folder    # 生成会话总览页 (dist/wechat-hub.html)
@@ -29,6 +29,12 @@ npm run build:stage-gap # 生成阶段时间跨度提示示例
 npm run build:document:characters # 生成人物集合文档
 npm run build:document:settings   # 生成设定集合文档
 npm run build:document:timeline   # 生成时间线集合文档
+npm run studio:dev                # 启动可视化 Studio 开发服务器
+npm run studio:build              # 构建 Studio 到 dist/studio/
+npm run studio:itch               # 构建可上传到 itch.io 的 Studio ZIP
+npm run studio:preview            # 本地预览 Studio 生产构建
+npm run demo:generate             # 修改默认 Demo 后刷新浏览器打包源码
+npm run demo:check                # 检查默认 Demo 打包源码是否与项目文件同步
 npm run hooks:install
 ```
 
@@ -41,27 +47,55 @@ npm run hooks:install
 - `dist/documents/characters.html`（人物集合文档）
 - `dist/documents/settings.html`（设定集合文档）
 - `dist/documents/timeline.html`（时间线集合文档）
+- `dist/studio/index.html`（可视化多内容创作 Studio）
+- `dist/chat-maker-studio-itch.zip`（可上传到 itch.io 的 Studio）
+
+## 可视化 Studio
+
+Studio 是完全静态的浏览器应用，作品草稿保存在当前浏览器的 IndexedDB。Phase 0–6 已形成完整创作闭环：共享人物与身份时间线、多对话与 Hub、社交、Markdown 文章、设定集、事件时间线、选择分支、计分/Flag 条件、账号推进与结局 Runtime、结构化引用校验，以及独立 HTML、开放项目 ZIP 和完整静态网站 ZIP。消息、社交、文章和人物默认以“类型 + 单行关键摘要”紧凑显示，点击后展开完整编辑字段；Studio 统一使用“对话”和“社交”称呼，与右侧预览一致。桌面端手机预览固定在当前视口内，外观面板可配置状态栏运营商文案。
+
+Studio 内置的“最后一碗海龟汤”是可完整通关的全功能 Demo，覆盖全部已开放能力。以后新增 Studio 功能时，必须同步更新 Demo 与 `test/format-sdk.test.js` 的覆盖断言。
+
+「依赖图」页签将关系拆成两张只读图：Flag 子页只显示 `内容 → Flag → 解锁内容` 并检测完整有向环；得分子页按账号/全局泳道计算每个 Require 的前向可达分数。两张图分别提供筛选、风险视图和节点定位，并提示断链 Flag、未消费 Flag、循环依赖、前向分数不足、作用域错配及恒真条件；它们都是纯派生视图，不改变项目格式。
+
+导出的项目 ZIP 是开放的 Markdown/YAML 项目，可重新导入 Studio；导出的独立 HTML 不需要 Studio 或服务端即可打开。浏览器预览和 Node 命令使用同一个 Shared Compiler，项目格式与 UI 实现可以独立演进。
+
+Studio 内置“最后一碗海龟汤”项目，通过餐厅目击、海难旧档案、幸存者证词和最终问答依次展示参与者资料与身份时间线、单聊与群聊、多账号解锁、引用、本地图片、链接卡片、撤回、状态消息、社交、Markdown 文章、设定集、事件时间线、计分/Flag 条件及好坏结局。故事不存在循环依赖或不可达内容，可以从头完成并在答错后保留线索重试。内置 Demo 是固定预览基线，刷新后恢复最新版；需要改写时先在作品栏复制。
+
+维护约定：内置 Demo 本身是 `examples/studio-demo/` 下的标准开放项目，剧情分别存放在 `conversations/*.md`、`articles/*.md`、`profiles.yml`、`story.yml` 和 `documents/*.yml` 中。修改后运行 `npm run demo:generate`，刷新供浏览器打包使用的 `src/studio-demo-source.generated.js`；`npm run demo:check` 和测试会检查两者没有漂移。以后每新增或调整一项 Studio 功能，必须同步更新 Demo 项目与 `test/format-sdk.test.js` 中的覆盖断言。
+
+### 发布 Studio 到 itch.io
+
+运行以下命令会以相对资源路径重新构建 Studio，并将 `dist/studio/` 的内容平铺到 ZIP 根目录：
+
+```bash
+npm run studio:itch
+```
+
+生成的 `dist/chat-maker-studio-itch.zip` 可直接上传到 itch.io。项目类型选择 **HTML**，推荐使用 **Click to launch in fullscreen**，让 Studio 获得完整的编辑视口。命令只负责生成压缩包，不创建 itch.io 项目页，也不会调用 butler 上传。
+
+Studio 草稿仍保存在浏览器的 IndexedDB 中；从 itch.io 打开时，草稿属于 itch.io 为该上传项目提供的页面源站和浏览器环境。清理该站点的浏览器数据会同时清除这些本地草稿，重要作品应定期使用“导出项目”备份。
 
 ## 命令行安装
 
 本地全局安装：
 
 ```bash
-cd /Users/dash/workspace/chat-framework
+cd /Users/dash/workspace/chat-maker
 npm link
 ```
 
 安装后可在任意目录使用：
 
 ```bash
-chat-framework build examples/chat.md dist/index.html
-chat-framework build:folder examples/showcase dist/showcase-wechat-hub.html
-chat-framework build-folder examples/showcase dist/showcase-wechat-hub.html
-chat-framework build:document examples/documents/characters.yml dist/documents/characters.html
-chat-framework help
+chat-maker build examples/chat.md dist/index.html
+chat-maker build:folder examples/showcase dist/showcase-wechat-hub.html
+chat-maker build-folder examples/showcase dist/showcase-wechat-hub.html
+chat-maker build:document examples/documents/characters.yml dist/documents/characters.html
+chat-maker help
 ```
 
-`npm link` 创建的是全局命令到当前项目的 symlink。后续更新 `chat-framework` 的代码后，命令会直接使用最新本地版本，不需要重新 `npm link`。只有移动项目目录、删除 link、修改命令名或换机器时，才需要重新 link。
+`npm link` 创建的是全局命令到当前项目的 symlink。后续更新 `chat-maker` 的代码后，命令会直接使用最新本地版本，不需要重新 `npm link`。只有移动项目目录、删除 link、修改命令名或换机器时，才需要重新 link。
 
 `build:folder` 成功后会默认输出 build report：账号/会话/文章/朋友圈/阶段小时摘要、单聊标题来源，以及每个账号下 `聊天 / 文档 / 社交 / 总计` 的文字数。文字数按可读文本字符估算，不统计 URL、资源路径、HTML 标签和内部 id。
 
@@ -305,12 +339,15 @@ ui:
     time: "12:21"
     battery: "31%"
   topTitle: "微信"
+  bgm:
+    type: "heartbeat"
   persistKey: "room_wechat_seen_v1"
   debug: false
 ```
 
 - `carrier/time/battery`：顶部状态栏文案
 - `topTitle`：顶部标题（如“微信”）
+- `bgm`：背景音乐。默认 `type: heartbeat` 使用内置心跳声；也可设置 `type: audio` 与 `src`（网络地址或项目内音频资源），首次点击页面后开始并循环播放
 - `persistKey`：浏览器本地记忆键名（用于“已播放会话直接完整展示”）
 - `debug`：是否输出 `[chat-debug]` 运行时日志，默认 `false`
 

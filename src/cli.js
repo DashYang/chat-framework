@@ -5,24 +5,24 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Simple CLI dispatcher for chat-framework
+// Simple CLI dispatcher for chat-maker
 // Usage:
-//   chat-framework build <input.md> <output.html>
-//   chat-framework build:folder <input-folder> <output.html>
-//   chat-framework build:document <input.yml> <output.html>
+//   chat-maker build <input.md> <output.html>
+//   chat-maker build:folder <input-folder> <output.html>
+//   chat-maker build:document <input.yml> <output.html>
 // Root semantics:
 //   build -> relative frontmatter paths (profiles/chat/articles) resolve from the markdown file directory
 //   build:folder -> profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from inputDir
 
 function printHelp() {
-  console.log(`chat-framework
+  console.log(`chat-maker
 
 Usage:
-  chat-framework build <input.md> <output.html>
-  chat-framework build:folder <input-folder> <output.html>
-  chat-framework build-folder <input-folder> <output.html>
-  chat-framework build:document <input.yml> <output.html>
-  chat-framework help
+  chat-maker build <input.md> <output.html>
+  chat-maker build:folder <input-folder> <output.html>
+  chat-maker build-folder <input-folder> <output.html>
+  chat-maker build:document <input.yml> <output.html>
+  chat-maker help
 
 Commands:
   build         Build a single chat markdown file into an HTML page.
@@ -40,11 +40,11 @@ Path semantics:
                  and are rebased for the output HTML location.
 
 Local install:
-  cd /Users/dash/workspace/chat-framework
+  cd /Users/dash/workspace/chat-maker
   npm link
 
 Notes:
-  npm link creates a symlink to this project. After updating chat-framework,
+  npm link creates a symlink to this project. After updating chat-maker,
   the global command uses the latest local code; you do not need to link again.`);
 }
 
@@ -60,9 +60,9 @@ async function run() {
     if (cmd === "build") {
       const [_, input, output] = argv;
       if (!input || !output) {
-        console.error("Usage: chat-framework build <input.md> <output.html>");
+        console.error("Usage: chat-maker build <input.md> <output.html>");
         console.error("Single-file root semantics: relative frontmatter paths such as profiles, chat, and articles resolve from the input markdown file's directory.");
-        console.error("Run chat-framework help for more details.");
+        console.error("Run chat-maker help for more details.");
         process.exit(1);
       }
       const { default: buildModule } = await import(path.join(__dirname, "build.js"));
@@ -84,9 +84,9 @@ async function run() {
     if (cmd === "build:folder" || cmd === "build-folder") {
       const [_, input, output] = argv;
       if (!input || !output) {
-        console.error("Usage: chat-framework build:folder <input-folder> <output.html>");
+        console.error("Usage: chat-maker build:folder <input-folder> <output.html>");
         console.error("Folder-build root semantics: profiles/, profiles.yml, ui.yml, story.yml, chatFiles, and groupChats resolve from the provided inputDir.");
-        console.error("Run chat-framework help for more details.");
+        console.error("Run chat-maker help for more details.");
         process.exit(1);
       }
       const mod = await import(path.join(__dirname, "build-folder.js"));
@@ -101,9 +101,9 @@ async function run() {
     if (cmd === "build:document") {
       const [_, input, output] = argv;
       if (!input || !output) {
-        console.error("Usage: chat-framework build:document <input.yml> <output.html>");
+        console.error("Usage: chat-maker build:document <input.yml> <output.html>");
         console.error("Document image paths resolve from the input YAML file directory.");
-        console.error("Run chat-framework help for more details.");
+        console.error("Run chat-maker help for more details.");
         process.exit(1);
       }
       const mod = await import(path.join(__dirname, "build-document.js"));

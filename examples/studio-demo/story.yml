@@ -1,0 +1,12 @@
+story:
+  accountOrder:
+    - waiter
+    - survivor
+    - solver
+  title: 最后一碗海龟汤
+  favicon: ./assets/avatar-host.svg
+  resetInfo: 答案不对。前面的线索仍然保留，请重新审视后再回答。
+  resetAccount: solver
+  resetLabel: 重新调查
+  resetConfirmText: 将重置最终答题进度；已经解锁的案件线索不会丢失。
+  endInfo: 推理正确。真正的海龟汤让顾远辨认出味道差异，也让他明白荒岛上那碗所谓的“海龟汤”来自已经死去的妻子。你找到了最后的真相。

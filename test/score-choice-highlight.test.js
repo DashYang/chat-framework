@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { highlightEffectRuntimeSource } from "../src/highlight-effect.js";
 import { loadConversationFromMarkdown } from "../src/load-conversation.js";
+import { NodeProjectSource } from "../src/node-project-source.js";
 import { parseChatMarkdown } from "../src/parser.js";
 import { renderHtml } from "../src/renderer.js";
 import { renderWechatHubHtml } from "../src/multi-renderer.js";
@@ -28,7 +29,7 @@ options:
   assert.match(html, /Pick one/);
   assert.match(html, /Alpha/);
   assert.match(html, /Beta/);
-  assert.match(html, /chat-framework:choice/);
+  assert.match(html, /chat-maker:choice/);
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
   scripts.forEach((match) => new Function(match[1]));
 });
@@ -126,7 +127,7 @@ test("a recalled compact text block splits into independently recalled bubbles",
 });
 
 test("invalid require scores fail the build instead of unlocking content", () => {
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-framework-require-"));
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-maker-require-"));
   const chatPath = path.join(fixtureDir, "chat.yml");
   fs.writeFileSync(chatPath, `chat:
   type: group
@@ -138,6 +139,7 @@ test("invalid require scores fail the build instead of unlocking content", () =>
   try {
     assert.throws(
       () => loadConversationFromMarkdown(path.resolve("examples/chat.md"), {
+        source: new NodeProjectSource(),
         chatPath,
         profilePath: path.resolve("examples/profiles.yml")
       }),
@@ -149,7 +151,7 @@ test("invalid require scores fail the build instead of unlocking content", () =>
 });
 
 test("single-chat frontmatter accepts score and flag requirements", () => {
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-framework-frontmatter-require-"));
+  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-maker-frontmatter-require-"));
   const markdownPath = path.join(fixtureDir, "chat.md");
   const profilesPath = path.join(fixtureDir, "profiles.yml");
   fs.writeFileSync(profilesPath, `users:
@@ -173,7 +175,10 @@ Hello
 `);
 
   try {
-    const conversation = loadConversationFromMarkdown(markdownPath, { selfId: "alice" });
+    const conversation = loadConversationFromMarkdown(markdownPath, {
+      source: new NodeProjectSource(),
+      selfId: "alice"
+    });
     assert.deepEqual(conversation.chat.require, {
       score: 3,
       flags: ["met_bob"],

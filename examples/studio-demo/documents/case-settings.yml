@@ -1,0 +1,13 @@
+type: settings
+title: 案件设定集
+theme: wechat
+items:
+  - image: ../assets/seaside-restaurant.svg
+    name: 临海餐厅
+    description: 以海鲜汤闻名的小餐厅。菜单明确标注海龟由合法养殖场供应，因此服务生能够确认汤的真实性。
+  - image: ../assets/island-map.svg
+    name: 无名礁岛
+    description: 缺少淡水和大型动物的荒岛。救援人员没有找到海龟壳、捕猎工具或长期生火留下的完整痕迹。
+  - image: ../assets/crew-photo.svg
+    name: 白鸥号
+    description: 2012 年失事的远洋客轮。顾远夫妇与二副陈默都在乘客及船员名单中。

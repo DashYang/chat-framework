@@ -158,6 +158,7 @@ function safeJson(data) {
  */
 const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       let audioCtx = null;
+      let customAudio = null;
       let timerId = null;
       let currentLevel = 0;
       let lastBeatAt = 0;
@@ -165,6 +166,19 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       let levelVersion = 0;
       let pulseTimer = null;
       const bpmMap = { 0: 10, 1: 65, 2: 75, 3: 90 };
+
+      function usesCustomAudio() {
+        return backgroundAudioConfig?.type === 'audio' && !!backgroundAudioConfig.src;
+      }
+
+      function ensureCustomAudio() {
+        if (!customAudio && usesCustomAudio()) {
+          customAudio = new Audio(backgroundAudioConfig.src);
+          customAudio.loop = true;
+          customAudio.preload = 'auto';
+        }
+        return customAudio;
+      }
 
       function ensureContext() {
         if (!audioCtx) {
@@ -211,6 +225,11 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       }
 
       function unlock() {
+        if (usesCustomAudio()) {
+          const audio = ensureCustomAudio();
+          if (audio?.paused) audio.play().catch(() => {});
+          return;
+        }
         const ctx = ensureContext();
         if (ctx.state === 'suspended') {
           ctx.resume().catch(() => {});
@@ -252,6 +271,11 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       }
 
       function start() {
+        if (usesCustomAudio()) {
+          const audio = ensureCustomAudio();
+          if (audio?.paused) audio.play().catch(() => {});
+          return;
+        }
         if (timerId) return;
         ensureContext();
         const currentAt = nowMs();
@@ -263,10 +287,12 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       }
 
       function stop() {
+        if (customAudio) customAudio.pause();
         if (timerId) { window.clearTimeout(timerId); timerId = null; }
       }
 
       function applyLevel(n) {
+        if (usesCustomAudio()) return;
         const num = Number(n);
         if (isNaN(num)) return;
         currentLevel = num;
@@ -297,10 +323,12 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
       }
 
       function reset() {
+        if (usesCustomAudio()) return;
         setLevel(0);
       }
 
       function isRunning() {
+        if (usesCustomAudio()) return !!customAudio && !customAudio.paused;
         return !!timerId;
       }
 
@@ -315,6 +343,9 @@ const HEARTBEAT_ENGINE_JS = `const heartbeatEngine = (function() {
  */
 function normalizeUi(ui) {
   const source = ui || {};
+  const bgm = source.bgm?.type === "audio" && String(source.bgm?.src || "").trim()
+    ? { type: "audio", src: String(source.bgm.src).trim() }
+    : { type: "heartbeat", src: "" };
   return {
     statusBar: {
       carrier: source.statusBar?.carrier || "中国移动",
@@ -323,7 +354,8 @@ function normalizeUi(ui) {
     },
     topTitle: source.topTitle || "微信",
     theme: source.theme || "wechat",
-    persistKey: source.persistKey || "chat_framework_seen_v1",
+    bgm,
+    persistKey: source.persistKey || "chat_maker_seen_v1",
     debug: source.debug === true
   };
 }
@@ -334,7 +366,8 @@ function normalizeUi(ui) {
  * @param {{
  *   title?: string,
  *   conversations: Array<Record<string, unknown>>,
- *   ui?: Record<string, unknown>
+ *   ui?: Record<string, unknown>,
+ *   startInAccountView?: boolean
  * }} input - Render input.
  * @returns {string} Full HTML document.
  *
@@ -344,13 +377,25 @@ function normalizeUi(ui) {
 export function renderWechatHubHtml(input) {
   const ui = normalizeUi(input.ui);
   const story = input.story || {};
+  const studioPreview = input.preview && typeof input.preview === "object"
+    ? {
+      kind: ["conversation", "message", "article", "social"].includes(input.preview.kind) ? input.preview.kind : "conversation",
+      conversationId: String(input.preview.conversationId || ""),
+      entityId: String(input.preview.entityId || "")
+    }
+    : null;
+  if (studioPreview) {
+    ui.persistKey = `${ui.persistKey || "chat_maker_seen_v1"}__studio_preview`;
+  }
   const appTitle = story.title || input.title || "微信";
   const favicon = typeof story.favicon === "string" ? story.favicon.trim() : "";
   const payload = safeJson({
     title: appTitle,
     conversations: input.conversations || [],
     ui,
-    story: input.story || {}
+    story: input.story || {},
+    startInAccountView: input.startInAccountView === true,
+    ...(studioPreview ? { studioPreview } : {})
   });
 
   return `<!doctype html>
@@ -400,6 +445,29 @@ export function renderWechatHubHtml(input) {
       font-size: 12px;
       background: var(--panel);
     }
+    ${studioPreview ? `
+    .studio-preview-notice {
+      position: relative;
+      z-index: 80;
+      flex: 0 0 auto;
+      padding: 8px 11px;
+      border-bottom: 1px solid #e6c45d;
+      background: #fff7d8;
+      color: #684f08;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .studio-preview-notice strong { display:block; font-size:12px; }
+    .studio-preview-requirements:empty { display:none; }
+    .studio-preview-target {
+      outline: 3px solid rgba(22,118,91,.32);
+      outline-offset: 2px;
+      animation: studio-preview-pulse 1.2s ease-out 1;
+    }
+    @keyframes studio-preview-pulse {
+      0% { outline-color: rgba(22,118,91,.8); }
+      100% { outline-color: rgba(22,118,91,.32); }
+    }` : ""}
     .top-nav {
       height: 46px;
       border-bottom: 1px solid var(--line);
@@ -807,6 +875,10 @@ export function renderWechatHubHtml(input) {
       <div id="status-time">${escapeHtml(ui.statusBar.time)}</div>
       <div id="status-battery">${escapeHtml(ui.statusBar.battery)}</div>
     </div>
+    ${studioPreview ? `<div id="studio-preview-notice" class="studio-preview-notice" role="status">
+      <strong>编辑预览 · 已忽略时间与解锁条件</strong>
+      <div id="studio-preview-requirements" class="studio-preview-requirements"></div>
+    </div>` : ""}
     <div id="unlock-toast" class="unlock-toast" role="status" aria-live="polite"></div>
 
     <section id="list-view" class="list-view">
@@ -979,7 +1051,8 @@ export function renderWechatHubHtml(input) {
     const accountListWrap = document.getElementById('account-list-wrap');
     const unlockToast = document.getElementById('unlock-toast');
 
-    const persistKey = payload.ui?.persistKey || 'chat_framework_seen_v1';
+    const persistKey = payload.ui?.persistKey || 'chat_maker_seen_v1';
+    const backgroundAudioConfig = payload.ui?.bgm || { type: 'heartbeat', src: '' };
     let timer = null;
     let recallTimers = [];
     let seenMap = {};
@@ -1595,6 +1668,9 @@ export function renderWechatHubHtml(input) {
           stageIndex,
           activeAccountId
         }));
+        window.dispatchEvent(new CustomEvent('chat-maker:progress', {
+          detail: { trueEndingCompleted: Object.keys(trueEndingHandled).some((key) => key.split('|').at(-1)?.startsWith('true-end')) }
+        }));
       } catch (_) {
         // Ignore storage failures.
       }
@@ -1719,6 +1795,15 @@ export function renderWechatHubHtml(input) {
 
     function configuredResetAccount() {
       return String(payload.story?.resetAccount || '').trim();
+    }
+
+    function configuredResetLabel() {
+      return String(payload.story?.resetLabel || '').trim() || '重置内容';
+    }
+
+    function configuredResetConfirmText() {
+      return String(payload.story?.resetConfirmText || '').trim()
+        || '将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。';
     }
 
     function configuredResetInfo() {
@@ -3277,7 +3362,7 @@ ${highlightEffectRuntimeSource()}
           + '<div><div class="account-name">' + esc(name) + '</div></div>'
           + current
           + '</button>';
-      }).join('') + '<button class="account-reset" type="button">饮用孟婆汤</button>';
+      }).join('') + '<button class="account-reset" type="button">' + esc(configuredResetLabel()) + '</button>';
       accountListWrap.querySelectorAll('.account-card').forEach((btn) => {
         btn.addEventListener('click', () => {
           cleanupMomentObserver();
@@ -3302,7 +3387,7 @@ ${highlightEffectRuntimeSource()}
       if (!resetConfirm) return;
       const name = resolveAccountCardName(profileForAccount(activeAccountId), activeAccountId);
       if (resetConfirmTitle) resetConfirmTitle.textContent = '饮用孟婆汤忘却“' + name + '”的旧事';
-      if (resetConfirmText) resetConfirmText.textContent = '将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。';
+      if (resetConfirmText) resetConfirmText.textContent = configuredResetConfirmText();
       resetConfirm.classList.add('show');
       resetConfirm.setAttribute('aria-hidden', 'false');
       if (resetCancel) resetCancel.focus();
@@ -3444,20 +3529,160 @@ ${highlightEffectRuntimeSource()}
     });
     articleBack.addEventListener('click', closeArticle);
 
+    ${studioPreview ? `try { localStorage.removeItem(persistKey); } catch (_) {}` : ""}
     loadSeen();
     initAccounts();
     hydrateTrueEndingPending();
     initTimelineStages();
     installImageViewer();
     installHighlightEffect(phone);
-    enterAccountView();
-    renderList();
-    heartbeatEngine.start();
+    if (payload.startInAccountView) showAccountView();
+    else {
+      enterAccountView();
+      renderList();
+    }
+    ${studioPreview ? "" : `heartbeatEngine.start();
     document.addEventListener('click', function resumeHeartbeat() {
       document.removeEventListener('click', resumeHeartbeat);
       heartbeatEngine.unlock();
       if (!heartbeatEngine.isRunning()) heartbeatEngine.start();
     }, { once: true });
+    window.addEventListener('message', (event) => {
+      if (event.data?.type !== 'chat-maker:studio-playback') return;
+      if (event.data.action === 'pause') heartbeatEngine.stop();
+      if (event.data.action === 'resume') {
+        heartbeatEngine.unlock();
+        if (!heartbeatEngine.isRunning()) heartbeatEngine.start();
+      }
+    });`}
+    ${studioPreview ? `
+    (function openStudioPreviewTarget() {
+      const preview = payload.studioPreview || {};
+      const requirementNode = document.getElementById('studio-preview-requirements');
+      function requirementText(label, rule) {
+        const normalized = normalizeRequireRule(rule);
+        if (!normalized) return '';
+        const parts = [];
+        if (normalized.score !== undefined) {
+          parts.push((normalized.scope === 'global' ? '全局' : '当前账号') + '得分 ≥ ' + normalized.score);
+        }
+        if (normalized.flags?.length) parts.push('Flag：' + normalized.flags.join(' + '));
+        return parts.length ? (label + '：' + parts.join(' · ')) : '';
+      }
+      function showRequirements(rows) {
+        if (requirementNode) requirementNode.textContent = rows.filter(Boolean).join(' ｜ ');
+      }
+      function showConversation(conv, targetMessageId) {
+        if (!conv) return;
+        clearTimer();
+        currentConversation = conv;
+        activeAccountId = conv.self || activeAccountId;
+        listView.style.display = 'none';
+        momentsView.style.display = 'none';
+        contactsView.style.display = 'none';
+        accountView.style.display = 'none';
+        detailView.style.display = 'flex';
+        homeTabbar.style.display = 'none';
+        chatTitle.textContent = conversationTitle(conv) || '';
+        const messages = conv.messages || [];
+        const targetIndex = targetMessageId
+          ? messages.findIndex((message) => String(message.id || '') === String(targetMessageId))
+          : messages.length - 1;
+        const visible = targetMessageId && targetIndex >= 0 ? messages.slice(0, targetIndex + 1) : messages;
+        timeline.innerHTML = visible.map((message) => renderMessage(message, conv, {
+          conversationId: conv.id,
+          forceRecalled: true
+        })).join('');
+        const targetMessage = targetIndex >= 0 ? messages[targetIndex] : null;
+        showRequirements([
+          requirementText('对话条件', conv.chat?.require),
+          targetMessageId ? requirementText('消息条件', targetMessage?.require) : ''
+        ]);
+        const targetNode = targetMessageId
+          ? timeline.querySelector('[data-mid="' + CSS.escape(String(targetMessageId)) + '"]')
+          : timeline.lastElementChild;
+        if (targetNode) {
+          targetNode.classList.add('studio-preview-target');
+          requestAnimationFrame(() => targetNode.scrollIntoView({ block: 'center' }));
+          if (targetMessage?.kind === 'highlight') triggerMessageHighlight(targetNode);
+        }
+      }
+      function showArticle(articleId) {
+        let item = null;
+        for (const conv of (payload.conversations || [])) {
+          if (conv.articles?.[articleId]) {
+            item = conv.articles[articleId];
+            currentConversation = conv;
+            activeAccountId = conv.self || activeAccountId;
+            break;
+          }
+        }
+        if (!item) return;
+        openInlineArticle({
+          articleId,
+          title: item.title,
+          author: item.author,
+          publishRaw: item.publishAt,
+          cover: item.cover,
+          text: item.text,
+          html: item.html,
+          images: item.images
+        });
+        showRequirements([requirementText('文章条件', item.require)]);
+      }
+      function showSocial(socialId) {
+        let target = null;
+        let ownerId = '';
+        let targetKey = '';
+        for (const conv of (payload.conversations || [])) {
+          const users = conv.profiles?.users || {};
+          for (const [profileId, profile] of Object.entries(users)) {
+            for (const [key, moment] of Object.entries(profile?.moments || {})) {
+              if (String(moment?.id || key) !== String(socialId)) continue;
+              target = moment;
+              ownerId = profileId;
+              targetKey = key;
+              currentConversation = conv;
+              break;
+            }
+            if (target) break;
+          }
+          if (target) break;
+        }
+        if (!target) return;
+        const originalRequire = target.require;
+        const publishRaw = target.publishAt || target.time || '';
+        const targetDay = toStageKey(publishRaw) || currentStageMs();
+        activeAccountId = currentConversation?.self || ownerId || activeAccountId;
+        for (const conv of (payload.conversations || [])) {
+          const accountProfile = conv.profiles?.users?.[activeAccountId];
+          if (!accountProfile) continue;
+          if (!accountProfile.moments) accountProfile.moments = {};
+          accountProfile.moments[targetKey || socialId] = { ...target, require: null };
+        }
+        unlockedAccounts[activeAccountId] = true;
+        timelineStages = [targetDay];
+        stageIndex = 0;
+        showMoments();
+        showRequirements([requirementText('社交条件', originalRequire)]);
+        const targetId = activeAccountId + '-' + (target.id || publishRaw);
+        const targetNode = momentsScroll.querySelector('[data-moment-id="' + CSS.escape(targetId) + '"]');
+        if (targetNode) {
+          targetNode.classList.add('studio-preview-target');
+          requestAnimationFrame(() => targetNode.scrollIntoView({ block: 'center' }));
+        }
+      }
+      if (preview.kind === 'social') {
+        showSocial(preview.entityId);
+        return;
+      }
+      if (preview.kind === 'article') {
+        showArticle(preview.entityId);
+        return;
+      }
+      const conversation = (payload.conversations || []).find((item) => item.id === preview.conversationId);
+      showConversation(conversation, preview.kind === 'message' ? preview.entityId : '');
+    })();` : ""}
   </script>
 </body>
 </html>`;
@@ -3724,6 +3949,7 @@ export function renderWechatStoryHtml(input) {
     const articleImages = document.getElementById('article-images');
 
     const persistKey = payload.persistKey || 'chat_story_seen_v1';
+    const backgroundAudioConfig = { type: 'heartbeat', src: '' };
     let timer = null;
     let recallTimers = [];
     let activeAudio = null;

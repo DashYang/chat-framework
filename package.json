@@ -1,11 +1,11 @@
 {
-  "name": "chat-framework",
+  "name": "chat-maker",
   "version": "0.1.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "bin": {
-    "chat-framework": "src/cli.js"
+    "chat-maker": "src/cli.js"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
@@ -18,13 +18,29 @@
     "build:document:characters": "node src/build-document.js examples/documents/characters.yml dist/documents/characters.html",
     "build:document:settings": "node src/build-document.js examples/documents/settings.yml dist/documents/settings.html",
     "build:document:timeline": "node src/build-document.js examples/documents/timeline.yml dist/documents/timeline.html",
+    "studio:dev": "vite --config studio/vite.config.ts",
+    "studio:build": "vite build --config studio/vite.config.ts",
+    "studio:itch": "node scripts/build-studio-itch.js",
+    "studio:preview": "vite preview --config studio/vite.config.ts",
+    "demo:generate": "node scripts/generate-studio-demo-source.js",
+    "demo:check": "node scripts/generate-studio-demo-source.js --check",
     "req:gen": "bash scripts/generate-requirement-doc.sh",
     "req:check": "bash scripts/check-doc-sync.sh",
     "hooks:install": "bash scripts/install-hooks.sh"
   },
   "dependencies": {
-    "gray-matter": "^4.0.3",
     "js-yaml": "^3.14.2",
+    "jszip": "^3.10.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "markdown-it": "^14.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@types/node": "^24.0.0",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
   }
 }
