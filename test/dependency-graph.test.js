@@ -23,13 +23,18 @@ function text(id, requireScore, scope = "account", requireFlags = []) {
 test("dependency model separates compact Flag graph and score lanes", () => {
   const model = buildDependencyGraph(createStudioDemoProject());
 
-  assert.equal(model.flagGraph.flags.some((item) => item.name === "demo-continued"), true);
+  assert.equal(model.flagGraph.flags.some((item) => item.name === "case-open"), true);
+  assert.equal(model.flagGraph.flags.some((item) => item.name === "true-end-soup"), true);
+  assert.equal(model.flagGraph.flags.some((item) => item.name === "bad-end-soup"), true);
   assert.equal(model.flagGraph.edges.some((item) => item.kind === "produce"), true);
   assert.equal(model.flagGraph.edges.some((item) => item.kind === "unlock"), true);
   assert.equal(model.flagGraph.contents.every((item) => Array.from(item.label).length <= 10), true);
-  assert.equal(model.flagGraph.cycles.length > 0, true);
-  assert.equal(model.scoreGraph.lanes.some((item) => item.id === "score:account:me"), true);
+  assert.equal(model.flagGraph.cycles.length, 0);
+  assert.deepEqual(model.flagGraph.diagnostics, []);
   assert.equal(model.scoreGraph.lanes.some((item) => item.id === "score:global"), true);
+  assert.equal(model.scoreGraph.lanes.find((item) => item.id === "score:global").reachableMax, 1);
+  assert.equal(model.scoreGraph.lanes.find((item) => item.id === "score:global").requirements.every((item) => item.sufficient), true);
+  assert.deepEqual(model.scoreGraph.diagnostics, []);
   assert.equal(Object.hasOwn(model, "conditions"), false);
 });
 
@@ -128,12 +133,12 @@ test("score lanes keep account and global sources separate and ignore negative m
 
 test("Flag and score filters operate independently", () => {
   const model = buildDependencyGraph(createStudioDemoProject());
-  const flags = filterFlagDependencyGraph(model.flagGraph, { kind: "message", flagQuery: "second-check" });
-  const scores = filterScoreDependencyGraph(model.scoreGraph, { lane: "score:account:me", kind: "conversation" });
+  const flags = filterFlagDependencyGraph(model.flagGraph, { kind: "message", flagQuery: "case-open" });
+  const scores = filterScoreDependencyGraph(model.scoreGraph, { lane: "score:global", kind: "conversation" });
 
-  assert.equal(flags.flags.map((item) => item.name).includes("demo-second-check"), true);
+  assert.equal(flags.flags.map((item) => item.name).includes("case-open"), true);
   assert.equal(flags.contents.every((item) => item.kind === "message"), true);
   assert.equal(scores.lanes.length, 1);
   assert.equal(scores.lanes[0].requirements.every((item) => item.kind === "conversation"), true);
-  assert.equal(filterFlagDependencyGraph(model.flagGraph, { riskOnly: true }).diagnostics.length > 0, true);
+  assert.deepEqual(filterFlagDependencyGraph(model.flagGraph, { riskOnly: true }).diagnostics, []);
 });

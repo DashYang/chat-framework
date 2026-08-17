@@ -1,7 +1,7 @@
 import type { AuthoringProject, ProjectSummary } from "./types";
 import { normalizeAuthoringProject } from "../../src/format-sdk.js";
 
-const DB_NAME = "chat-framework-studio";
+const DB_NAME = "chat-maker-studio";
 const DB_VERSION = 1;
 const STORE = "projects";
 

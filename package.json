@@ -1,11 +1,11 @@
 {
-  "name": "chat-framework",
+  "name": "chat-maker",
   "version": "0.1.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "bin": {
-    "chat-framework": "src/cli.js"
+    "chat-maker": "src/cli.js"
   },
   "scripts": {
     "test": "node --test test/*.test.js",
@@ -20,7 +20,10 @@
     "build:document:timeline": "node src/build-document.js examples/documents/timeline.yml dist/documents/timeline.html",
     "studio:dev": "vite --config studio/vite.config.ts",
     "studio:build": "vite build --config studio/vite.config.ts",
+    "studio:itch": "node scripts/build-studio-itch.js",
     "studio:preview": "vite preview --config studio/vite.config.ts",
+    "demo:generate": "node scripts/generate-studio-demo-source.js",
+    "demo:check": "node scripts/generate-studio-demo-source.js --check",
     "req:gen": "bash scripts/generate-requirement-doc.sh",
     "req:check": "bash scripts/check-doc-sync.sh",
     "hooks:install": "bash scripts/install-hooks.sh"

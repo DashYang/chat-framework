@@ -1,0 +1,25 @@
+type: timeline
+title: 案件时间线
+theme: wechat
+items:
+  - image: ../assets/island-map.svg
+    time: '2012-06-03'
+    description: 白鸥号遭遇风暴失事，数名乘客漂流至无名礁岛。
+    participants:
+      - 陈默
+  - image: ../assets/old-newspaper.svg
+    time: '2012-06-15'
+    description: 顾远、陈默等三人获救；顾远的妻子被列为失踪。
+    participants:
+      - 陈默
+  - image: ../assets/restaurant-receipt.svg
+    time: '2026-07-18'
+    description: 顾远在临海餐厅第一次喝到真正的海龟汤，当晚死亡。
+    participants:
+      - 周屿
+      - 林警官
+  - time: '2026-07-20'
+    description: 全部证据已收集，等待解谜者回答最后一问。
+    participants:
+      - 解谜者
+      - 汤主

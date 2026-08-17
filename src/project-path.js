@@ -58,8 +58,10 @@ export function basenameProjectPath(value) {
 }
 
 export function relativeProjectPath(fromDir, targetPath) {
-  const from = splitRoot(normalizeProjectPath(fromDir));
-  const target = splitRoot(normalizeProjectPath(targetPath));
+  const normalizedFrom = normalizeProjectPath(fromDir);
+  const normalizedTarget = normalizeProjectPath(targetPath);
+  const from = splitRoot(normalizedFrom === "." ? "" : normalizedFrom);
+  const target = splitRoot(normalizedTarget === "." ? "" : normalizedTarget);
   if (from.root.toLowerCase() !== target.root.toLowerCase()) {
     return normalizeProjectPath(targetPath);
   }

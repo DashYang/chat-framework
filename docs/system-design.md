@@ -1,8 +1,8 @@
-# chat-framework 设计文档（v1.0）
+# chat-maker 设计文档（v1.0）
 
 ## 1. 项目目标
 
-`chat-framework` 是一个“聊天记录到网页”的静态生成框架，支持：
+`chat-maker` 是一个“聊天记录到网页”的静态生成框架，支持：
 - 由 Markdown + YAML 生成聊天页面
 - **单会话页 (Single Conversation Page)** 渲染
 - **会话总览页 (Conversation Hub)** 聚合

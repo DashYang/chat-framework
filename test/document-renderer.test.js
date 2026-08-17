@@ -160,7 +160,7 @@ items:
 });
 
 test("buildDocument writes a standalone HTML page", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-framework-document-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-maker-document-"));
   const inputPath = path.join(tempDir, "settings.yml");
   const outputPath = path.join(tempDir, "dist", "settings.html");
   fs.mkdirSync(path.join(tempDir, "assets"));

@@ -11,7 +11,7 @@ Skill 路径：
 - `chat.yml`
 - `ui.yml`（多会话模式可选）
 - 目录模式下的 `profiles/*.yml`、`articles/*.md`（兼容 `articles/*.yml`）、`story.yml`
-- 也支持在已有 chat-framework 项目中增量追加新对话
+- 也支持在已有 chat-maker 项目中增量追加新对话
 
 ## 2. 推荐输入格式
 
@@ -27,7 +27,7 @@ Skill 路径：
 ## 3. 推荐提示词模板
 
 ```text
-请使用 chat-record-converter skill，把以下聊天整理为 chat-framework 的输入文件。
+请使用 chat-record-converter skill，把以下聊天整理为 chat-maker 的输入文件。
 要求：
 1) 生成 chat.md、profiles.yml、chat.yml；若是多账号/多会话目录模式，生成 profiles/*.yml、必要的 group yml、ui.yml、story.yml
 2) 第一条消息使用绝对时间，后续优先相对时间
@@ -45,7 +45,7 @@ Skill 路径：
 增量导入已有项目：
 
 ```text
-请使用 chat-record-converter skill，把以下新增聊天追加到这个已有 chat-framework 项目。
+请使用 chat-record-converter skill，把以下新增聊天追加到这个已有 chat-maker 项目。
 项目根目录：<路径>
 要求：
 1) 先读取现有 profiles/story/chatFiles/groupChats/articles

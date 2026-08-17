@@ -6,5 +6,5 @@ ui:
   topTitle: "微信"
   # 取消注释下面这行启用绿黑终端风格
   theme: "iterms"
-  persistKey: "chat_framework_showcase_seen_v1"
+  persistKey: "chat_maker_showcase_seen_v1"
   # debug: true

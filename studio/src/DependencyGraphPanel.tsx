@@ -17,7 +17,7 @@ interface DependencyGraphPanelProps {
 type GraphEdge = { id: string; from: string; to: string; kind: string; cyclic?: boolean };
 type EdgePath = GraphEdge & { path: string };
 
-const kindLabels: Record<string, string> = { all: "全部内容", conversation: "对话", message: "消息", social: "朋友圈", article: "文章", runtime: "结局" };
+const kindLabels: Record<string, string> = { all: "全部内容", conversation: "对话", message: "消息", social: "社交", article: "文章", runtime: "结局" };
 const severityLabels: Record<string, string> = { error: "错误", warning: "警告", info: "提示" };
 
 function nodeRiskClass(nodeId: string, diagnostics: any[]) {

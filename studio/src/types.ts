@@ -105,6 +105,8 @@ export interface StoryConfig {
   favicon: string;
   resetInfo: string;
   resetAccount: string;
+  resetLabel: string;
+  resetConfirmText: string;
   endInfo: string;
 }
 
@@ -114,6 +116,8 @@ export interface AuthoringProject {
   title: string;
   theme: string;
   statusBarCarrier: string;
+  bgmMode: "heartbeat" | "audio";
+  bgmSource: string;
   selfId: string;
   participants: Participant[];
   conversations: Conversation[];

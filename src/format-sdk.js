@@ -4,6 +4,7 @@ import { createDiagnostic } from "./diagnostics.js";
 import { parseChatMarkdown } from "./parser.js";
 import { dirnameProjectPath, resolveProjectPath } from "./project-path.js";
 import { MemoryProjectSource } from "./project-source.js";
+import { studioDemoFiles } from "./studio-demo-source.generated.js";
 
 export const AUTHORING_SPEC_VERSION = "3.0";
 export const STUDIO_DEMO_PROJECT_ID = "studio-feature-demo";
@@ -25,6 +26,8 @@ export function createStarterProject() {
     title: "未命名聊天作品",
     theme: "wechat",
     statusBarCarrier: "中国移动",
+    bgmMode: "heartbeat",
+    bgmSource: "",
     selfId: "me",
     participants: [
       { id: "me", name: "我", avatar: "", bio: "", identityTimeline: [] },
@@ -59,14 +62,9 @@ export function createStarterProject() {
     socialPosts: [],
     articles: [],
     documents: [],
-    story: { enabled: false, accountOrder: ["me"], title: "", favicon: "", resetInfo: "", resetAccount: "", endInfo: "" },
+    story: { enabled: false, accountOrder: ["me"], title: "", favicon: "", resetInfo: "", resetAccount: "", resetLabel: "重置内容", resetConfirmText: "将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。", endInfo: "" },
     assets: []
   };
-}
-
-function demoSvgDataUrl(label, background, foreground = "#ffffff") {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><rect width="640" height="400" rx="36" fill="${background}"/><circle cx="320" cy="162" r="82" fill="${foreground}" opacity=".18"/><text x="320" y="190" text-anchor="middle" font-family="sans-serif" font-size="72" font-weight="700" fill="${foreground}">${label}</text><text x="320" y="310" text-anchor="middle" font-family="sans-serif" font-size="28" fill="${foreground}" opacity=".86">Chat Framework Studio</text></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
@@ -75,199 +73,7 @@ function demoSvgDataUrl(label, background, foreground = "#ffffff") {
  * Studio feature is added.
  */
 export function createStudioDemoProject() {
-  return {
-    schemaVersion: AUTHORING_SPEC_VERSION,
-    id: STUDIO_DEMO_PROJECT_ID,
-    title: "Studio 全功能 Demo",
-    theme: "wechat",
-    statusBarCarrier: "中国移动",
-    selfId: "me",
-    participants: [
-      { id: "me", name: "我", avatar: "asset:avatar-me", bio: "当前账号 · 可在参与者面板编辑资料", identityTimeline: [] },
-      { id: "friend", name: "小满", avatar: "asset:avatar-friend", bio: "朋友 · 展示接收方消息与资料卡", identityTimeline: [
-        { id: "friend-2026", effectiveAt: "2026-01-01", name: "小满", avatar: "asset:avatar-friend", bio: "Phase 5 身份时间线：初识" },
-        { id: "friend-2027", effectiveAt: "2027-01-01", name: "满编辑", avatar: "asset:avatar-editor", bio: "一年后的新身份" }
-      ] },
-      { id: "editor", name: "编辑部", avatar: "asset:avatar-editor", bio: "群聊成员、朋友圈作者与文章作者", identityTimeline: [] }
-    ],
-    conversations: [{
-      id: "main",
-      title: "Studio 功能演示",
-      type: "single",
-      selfId: "me",
-      messages: [
-        {
-          id: "welcome",
-          senderId: "friend",
-          timeRaw: "2026-01-01 10:00:00",
-          kind: "text",
-          text: "欢迎来到全功能 Demo。消息流默认显示一行摘要，点击任一消息可展开详情；访问 https://example.com 可以测试自动链接。",
-          quoteId: "",
-          recallDelaySec: 0
-        },
-        {
-          id: "reply",
-          senderId: "me",
-          timeRaw: "+1m",
-          kind: "text",
-          text: "这条消息展示发送方气泡和引用前序消息。",
-          quoteId: "welcome",
-          recallDelaySec: 0
-        },
-        {
-          id: "photo",
-          senderId: "friend",
-          timeRaw: "+1m",
-          kind: "image",
-          text: "",
-          imageSource: "asset:demo-image",
-          caption: "本地资产图片与图片说明",
-          quoteId: "",
-          recallDelaySec: 0
-        },
-        {
-          id: "card",
-          senderId: "friend",
-          timeRaw: "+1m",
-          kind: "link-card",
-          text: "",
-          linkCard: {
-            url: "https://example.com/chat-framework",
-            title: "链接卡片功能",
-            desc: "包含标题、摘要、站点和本地封面资产。",
-            image: "asset:demo-image",
-            site: "example.com"
-          },
-          quoteId: "",
-          recallDelaySec: 0
-        },
-        {
-          id: "recall",
-          senderId: "me",
-          timeRaw: "+1m",
-          kind: "text",
-          text: "这条消息会在 3 秒后撤回。",
-          quoteId: "",
-          recallDelaySec: 3
-        },
-        {
-          id: "status",
-          senderId: "me",
-          timeRaw: "+1m",
-          kind: "status",
-          text: "状态消息会居中显示，不带头像和气泡",
-          quoteId: "",
-          recallDelaySec: 0,
-          requireFlags: ["demo-continued", "demo-second-check"]
-        },
-        {
-          id: "choice-demo",
-          senderId: "friend",
-          timeRaw: "+1m",
-          kind: "choice",
-          text: "",
-          quoteId: "",
-          recallDelaySec: 0,
-          choice: { prompt: "继续探索完整 Demo？", speakerId: "me", scope: "account", options: [
-            { id: "continue", label: "继续", text: "继续看看。", score: 2, flags: ["demo-continued", "true-end-demo"] },
-            { id: "later", label: "稍后", text: "稍后再看。", score: 0, flags: ["bad-end-demo"] }
-          ] }
-        },
-        {
-          id: "cycle-demo",
-          senderId: "friend",
-          timeRaw: "+1m",
-          kind: "choice",
-          text: "",
-          quoteId: "",
-          recallDelaySec: 0,
-          requireFlags: ["demo-cycle"],
-          choice: { prompt: "这个选项演示循环依赖诊断", speakerId: "me", scope: "account", options: [
-            { id: "cycle", label: "循环", text: "这条路径无法自行启动。", score: 0, flags: ["demo-cycle"] },
-            { id: "leave", label: "离开", text: "返回其他路径。", score: 0, flags: [] }
-          ] }
-        }
-      ]
-    }, {
-      id: "team",
-      title: "完整创作群",
-      type: "group",
-      selfId: "me",
-      requireScore: 2,
-      requireFlags: ["demo-continued"],
-      requireScope: "account",
-      messages: [{
-        id: "team-welcome",
-        senderId: "editor",
-        timeRaw: "2026-01-02 09:00:00",
-        kind: "text",
-        text: "第二个会话展示多会话 Hub、群聊入口与阶段推进。",
-        quoteId: "",
-        recallDelaySec: 0
-      }, {
-        id: "team-reply",
-        senderId: "me",
-        timeRaw: "+1m",
-        kind: "text",
-        text: "会话、社交和文章现在都在同一个 Studio 项目里。",
-        quoteId: "team-welcome",
-        recallDelaySec: 0
-      }, {
-        id: "global-choice",
-        senderId: "editor",
-        timeRaw: "+1m",
-        kind: "choice",
-        text: "",
-        quoteId: "",
-        recallDelaySec: 0,
-        choice: { prompt: "是否解锁全局文章线？", speakerId: "me", scope: "global", options: [
-          { id: "unlock", label: "解锁", text: "解锁全局文章线。", score: 1, flags: ["global-route"] },
-          { id: "skip", label: "跳过", text: "暂时跳过。", score: 0, flags: [] }
-        ] }
-      }]
-    }],
-    socialPosts: [{
-      id: "moment-demo",
-      authorId: "friend",
-      publishAt: "2026-01-01 10:05:00",
-      text: "这是由 Social Editor 管理的朋友圈，支持文字和多张图片。",
-      images: ["asset:demo-image"],
-      requireScore: 0,
-      requireFlags: [],
-      requireScope: "account"
-    }],
-    articles: [{
-      id: "article-demo",
-      authorId: "editor",
-      publishAt: "2026-01-01 09:30:00",
-      title: "Phase 6：完整互动作品闭环",
-      cover: "asset:demo-image",
-      summary: "由 Article Editor 创建，正文使用 Markdown。",
-      body: "# Studio Phase 6\n\n人物、会话、朋友圈、文章、资料库和剧情规则共享稳定 ID 与图片资产。\n\n- 多会话 Hub\n- Social / Article Editor\n- 人物身份时间线与资料库\n- 选择分支、条件和账号推进\n- 完整静态网站导出",
-      images: ["asset:demo-image"],
-      requireScore: 1,
-      requireFlags: ["global-route"],
-      requireScope: "global"
-    }],
-    documents: [{
-      id: "world-guide",
-      type: "settings",
-      title: "Studio 设定集",
-      items: [{ id: "studio", name: "创作工作台", image: "asset:demo-image", time: "", description: "通过可视化编辑器生成开放的 Markdown/YAML 项目。", participantIds: [] }]
-    }, {
-      id: "story-timeline",
-      type: "timeline",
-      title: "功能时间线",
-      items: [{ id: "phase-6", name: "", image: "asset:demo-image", time: "Phase 6", description: "人物、内容、规则和静态网站形成完整闭环。", participantIds: ["me", "friend", "editor"] }]
-    }],
-    story: { enabled: true, accountOrder: ["me", "friend", "editor"], title: "Studio 全功能 Demo", favicon: "asset:avatar-me", resetInfo: "重新开始这一段故事", resetAccount: "me", endInfo: "你已体验 Studio 的全部功能。" },
-    assets: [
-      { id: "avatar-me", fileName: "avatar-me.svg", mimeType: "image/svg+xml", dataUrl: demoSvgDataUrl("我", "#07c160") },
-      { id: "avatar-friend", fileName: "avatar-friend.svg", mimeType: "image/svg+xml", dataUrl: demoSvgDataUrl("满", "#576b95") },
-      { id: "avatar-editor", fileName: "avatar-editor.svg", mimeType: "image/svg+xml", dataUrl: demoSvgDataUrl("编", "#b45f4d") },
-      { id: "demo-image", fileName: "studio-demo.svg", mimeType: "image/svg+xml", dataUrl: demoSvgDataUrl("DEMO", "#6f5bd3") }
-    ]
-  };
+  return parseAuthoringProject(new MemoryProjectSource(studioDemoFiles));
 }
 
 export function normalizeAuthoringProject(project) {
@@ -301,9 +107,13 @@ export function normalizeAuthoringProject(project) {
     favicon: String(normalized.story?.favicon || ""),
     resetInfo: String(normalized.story?.resetInfo || ""),
     resetAccount: String(normalized.story?.resetAccount || ""),
+    resetLabel: String(normalized.story?.resetLabel || "重置内容"),
+    resetConfirmText: String(normalized.story?.resetConfirmText || "将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。"),
     endInfo: String(normalized.story?.endInfo || "")
   };
   normalized.statusBarCarrier = String(normalized.statusBarCarrier || "中国移动");
+  normalized.bgmMode = normalized.bgmMode === "audio" ? "audio" : "heartbeat";
+  normalized.bgmSource = String(normalized.bgmSource || "");
   normalized.assets = Array.isArray(normalized.assets) ? normalized.assets : [];
   if (normalized.schemaVersion === LEGACY_AUTHORING_SPEC_VERSION || !normalized.schemaVersion) {
     normalized.schemaVersion = AUTHORING_SPEC_VERSION;
@@ -338,6 +148,15 @@ export function validateAuthoringProject(project) {
   }
   if (!String(project.title || "").trim()) {
     diagnostics.push(createDiagnostic({ code: "TITLE_REQUIRED", message: "作品标题不能为空", path: "project.yml", field: "title" }));
+  }
+  if (project.bgmMode === "audio" && !String(project.bgmSource || "").trim()) {
+    diagnostics.push(createDiagnostic({ code: "BGM_SOURCE_REQUIRED", message: "自定义 BGM 需要上传音频或填写网络音频地址", path: "ui.yml", field: "bgmSource" }));
+  }
+  if (String(project.bgmSource || "").startsWith("asset:")) {
+    const bgmAssetId = String(project.bgmSource).slice("asset:".length);
+    if (!(project.assets || []).some((asset) => asset.id === bgmAssetId)) {
+      diagnostics.push(createDiagnostic({ code: "BGM_ASSET_NOT_FOUND", message: `BGM 引用了不存在的资源：${bgmAssetId}`, path: "ui.yml", field: "bgmSource" }));
+    }
   }
   const participants = Array.isArray(project.participants) ? project.participants : [];
   if (participants.length < 2) {
@@ -404,10 +223,10 @@ export function validateAuthoringProject(project) {
   const socialIds = new Set();
   for (const post of project.socialPosts) {
     const id = String(post?.id || "").trim();
-    if (!ID_RE.test(id) || socialIds.has(id)) diagnostics.push(fieldDiagnostic("INVALID_SOCIAL_ID", "朋友圈 ID 必须有效且唯一", id, "id"));
-    if (!participantIds.has(String(post?.authorId || ""))) diagnostics.push(fieldDiagnostic("UNKNOWN_SOCIAL_AUTHOR", "朋友圈作者必须引用参与者", id, "authorId"));
+    if (!ID_RE.test(id) || socialIds.has(id)) diagnostics.push(fieldDiagnostic("INVALID_SOCIAL_ID", "社交动态 ID 必须有效且唯一", id, "id"));
+    if (!participantIds.has(String(post?.authorId || ""))) diagnostics.push(fieldDiagnostic("UNKNOWN_SOCIAL_AUTHOR", "社交作者必须引用参与者", id, "authorId"));
     if (!ABS_TIME_RE.test(String(post?.publishAt || ""))) diagnostics.push(fieldDiagnostic("INVALID_PUBLISH_TIME", "发布时间必须是绝对时间", id, "publishAt"));
-    if (!String(post?.text || "").trim() && !(post?.images || []).length) diagnostics.push(fieldDiagnostic("SOCIAL_CONTENT_REQUIRED", "朋友圈需要文字或图片", id, "text"));
+    if (!String(post?.text || "").trim() && !(post?.images || []).length) diagnostics.push(fieldDiagnostic("SOCIAL_CONTENT_REQUIRED", "社交动态需要文字或图片", id, "text"));
     if (post.requireScore !== undefined && !Number.isFinite(Number(post.requireScore))) diagnostics.push(fieldDiagnostic("INVALID_REQUIRE_SCORE", "条件分数必须是数字", id, "requireScore"));
     socialIds.add(id);
   }
@@ -453,10 +272,11 @@ export function validateAuthoringProject(project) {
 }
 
 function dataUrlToBytes(dataUrl) {
-  const match = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+  const match = String(dataUrl || "").match(/^data:([^,]*),(.*)$/s);
   if (!match) return new Uint8Array();
-  const payload = match[3] || "";
-  if (match[2]) {
+  const metadata = match[1] || "";
+  const payload = match[2] || "";
+  if (/(?:^|;)base64(?:;|$)/i.test(metadata)) {
     const binary = globalThis.atob
       ? globalThis.atob(payload)
       : Buffer.from(payload, "base64").toString("binary");
@@ -479,9 +299,26 @@ function sanitizeFileName(value, fallback) {
   return safe || fallback;
 }
 
+export function studioProjectPersistKey(projectId) {
+  return `chat_maker_studio_${sanitizeFileName(projectId, "project")}`;
+}
+
 function mimeFromPath(filePath) {
   const ext = String(filePath || "").split(".").pop()?.toLowerCase();
-  return ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml" })[ext] || "application/octet-stream";
+  return ({
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    m4a: "audio/mp4",
+    aac: "audio/aac",
+    flac: "audio/flac"
+  })[ext] || "application/octet-stream";
 }
 
 function assetPath(asset) {
@@ -601,7 +438,15 @@ export function serializeAuthoringProject(project, options = {}) {
     }
   });
   files["profiles.yml"] = yamlText({ users });
-  files["ui.yml"] = yamlText({ ui: { statusBar: { carrier: project.statusBarCarrier || "中国移动" }, topTitle: project.title, theme: project.theme, persistKey: `chat_framework_studio_${sanitizeFileName(project.id, "project")}` } });
+  files["ui.yml"] = yamlText({ ui: {
+    statusBar: { carrier: project.statusBarCarrier || "中国移动" },
+    topTitle: project.title,
+    theme: project.theme,
+    bgm: project.bgmMode === "audio"
+      ? { type: "audio", src: resolveMedia(project, project.bgmSource, assetMode, files) }
+      : { type: "heartbeat" },
+    persistKey: studioProjectPersistKey(project.id)
+  } });
   for (const conversation of project.conversations) {
     const chatPath = `chats/${conversation.id}.yml`;
     files[chatPath] = yamlText({ chat: { type: conversation.type, self: conversation.selfId, title: conversation.title, ...(serializeRequirement(conversation) ? { require: serializeRequirement(conversation) } : {}) } });
@@ -648,6 +493,8 @@ export function serializeAuthoringProject(project, options = {}) {
     ...(project.story.favicon ? { favicon: resolveMedia(project, project.story.favicon, assetMode, files) } : {}),
     ...(project.story.resetInfo ? { resetInfo: project.story.resetInfo } : {}),
     ...(project.story.resetAccount ? { resetAccount: project.story.resetAccount } : {}),
+    ...(project.story.resetLabel ? { resetLabel: project.story.resetLabel } : {}),
+    ...(project.story.resetConfirmText ? { resetConfirmText: project.story.resetConfirmText } : {}),
     ...(project.story.endInfo ? { endInfo: project.story.endInfo } : {})
   } });
   return { files, entryPath: "", target: "folder", diagnostics: [] };
@@ -828,6 +675,10 @@ export function parseAuthoringProject(source) {
     title: String(manifest.project?.title || "未命名聊天作品"),
     theme: String(ui.theme || theme),
     statusBarCarrier: String(ui.statusBar?.carrier || "中国移动"),
+    bgmMode: ui.bgm?.type === "audio" && ui.bgm?.src ? "audio" : "heartbeat",
+    bgmSource: ui.bgm?.type === "audio"
+      ? resolveImportAsset(source, ui.bgm?.src || "", ".", assets, assetIds)
+      : "",
     selfId: String(conversations[0]?.selfId || participants[0]?.id || ""),
     participants,
     conversations,
@@ -841,6 +692,8 @@ export function parseAuthoringProject(source) {
       favicon: resolveImportAsset(source, storyRaw.favicon || "", ".", assets, assetIds),
       resetInfo: String(storyRaw.resetInfo || ""),
       resetAccount: String(storyRaw.resetAccount || ""),
+      resetLabel: String(storyRaw.resetLabel || "重置内容"),
+      resetConfirmText: String(storyRaw.resetConfirmText || "将移除本段故事的分数、奖励和后续账号解锁，内容文件不会受影响。"),
       endInfo: String(storyRaw.endInfo || "")
     },
     assets

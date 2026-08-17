@@ -74,6 +74,71 @@ test("shared compiler renders a folder hub from MemoryProjectSource", () => {
   assert.match(result.html, /"title":"Bob"/);
 });
 
+test("folder compiler rebases nested content resources to the project root", () => {
+  const result = compileFolderProject({
+    source: new MemoryProjectSource({
+      "project/profiles.yml": `users:
+  alice:
+    name: Alice
+    avatar: ./assets/alice.png
+    moments:
+      p1:
+        publishAt: '2026-01-01 10:00:00'
+        text: Moment
+        images: [./assets/moment.png]
+    officialArticles: [./articles/story.md]
+    chatFiles: [conversations/main.md]
+    groupChats:
+      conversations/main.md: chats/main.yml
+  bob:
+    name: Bob
+    avatar: https://example.com/bob.png
+`,
+      "project/chats/main.yml": `chat:
+  type: group
+  self: alice
+  title: Group
+  avatar: ../assets/group.png
+`,
+      "project/conversations/main.md": `---
+title: Group
+profiles: ../profiles.yml
+chat: ../chats/main.yml
+articles: ../articles
+---
+@alice #m1 [2026-01-01 10:00:00] [image]
+../assets/chat.png
+Chat image
+
+@bob #m2 [+1m]
+Hi
+`,
+      "project/articles/story.md": `---
+publishAt: '2026-01-01 10:05:00'
+title: Story
+author: Alice
+cover: ../assets/cover.png
+images: [../assets/gallery.png]
+---
+Inline ![image](../assets/inline.png)
+`
+    }),
+    inputDir: "project"
+  });
+
+  assert.deepEqual(result.diagnostics, []);
+  const conversation = result.metadata.conversations[0];
+  const article = conversation.articles.story;
+  assert.equal(conversation.profiles.users.alice.avatar, "assets/alice.png");
+  assert.equal(conversation.profiles.users.bob.avatar, "https://example.com/bob.png");
+  assert.deepEqual(conversation.profiles.users.alice.moments.p1.images, ["assets/moment.png"]);
+  assert.equal(conversation.chat.groupInfo.avatar, "assets/group.png");
+  assert.equal(conversation.messages[0].imageUrl, "assets/chat.png");
+  assert.equal(article.cover, "assets/cover.png");
+  assert.deepEqual(article.images, ["assets/gallery.png"]);
+  assert.match(article.html, /src="assets\/inline\.png"/);
+});
+
 test("shared compiler renders a collection document from MemoryProjectSource", () => {
   const result = compileDocumentProject({
     source: new MemoryProjectSource({
@@ -133,7 +198,7 @@ test("YAML compiler diagnostics include source location when available", () => {
 });
 
 test("memory and Node project sources produce identical single-page output", () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-framework-source-parity-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-maker-source-parity-"));
   try {
     for (const [fileName, contents] of Object.entries(singleFiles)) {
       fs.writeFileSync(path.join(tempDir, fileName), contents, "utf-8");
@@ -170,6 +235,7 @@ test("compiler core and core loaders do not import filesystem modules", () => {
 test("project paths resolve consistently without Node path", () => {
   assert.equal(normalizeProjectPath("project/./chat/../profiles/alice.yml"), "project/profiles/alice.yml");
   assert.equal(resolveProjectPath("project/chats", "../profiles/alice.yml"), "project/profiles/alice.yml");
+  assert.equal(relativeProjectPath(".", "assets/avatar.png"), "assets/avatar.png");
   assert.equal(
     relativeProjectPath("/project/dist", "/project/content/assets/avatar.png"),
     "../content/assets/avatar.png"

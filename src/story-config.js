@@ -8,6 +8,8 @@ export function validateStoryConfig(story, conversations = []) {
   const hasResetInfo = Object.prototype.hasOwnProperty.call(story, "resetInfo");
   const hasResetAccount = Object.prototype.hasOwnProperty.call(story, "resetAccount");
   const hasEndInfo = Object.prototype.hasOwnProperty.call(story, "endInfo");
+  const hasResetLabel = Object.prototype.hasOwnProperty.call(story, "resetLabel");
+  const hasResetConfirmText = Object.prototype.hasOwnProperty.call(story, "resetConfirmText");
   const badEndingFlags = new Set();
   for (const conversation of conversations) {
     for (const message of conversation?.messages || []) {
@@ -23,6 +25,12 @@ export function validateStoryConfig(story, conversations = []) {
   }
   if (hasEndInfo && typeof story.endInfo !== "string") {
     throw new Error("story.endInfo must be a string");
+  }
+  if (hasResetLabel && typeof story.resetLabel !== "string") {
+    throw new Error("story.resetLabel must be a string");
+  }
+  if (hasResetConfirmText && typeof story.resetConfirmText !== "string") {
+    throw new Error("story.resetConfirmText must be a string");
   }
   if (!hasResetInfo && !hasResetAccount && !badEndingFlags.size) return;
   if (!hasResetAccount || !String(story.resetAccount || "").trim()) {

@@ -98,11 +98,11 @@ function loadOptionalConfig(source, inputDir, fileName, rootKey) {
   return parsed[rootKey] || {};
 }
 
-export function compileFolderProject({ source, inputDir, title: requestedTitle }) {
+export function compileFolderProject({ source, inputDir, title: requestedTitle, preview, startInAccountView }) {
   try {
     assertProjectSource(source);
     const profilesPath = findProfilesPath(source, inputDir);
-    const profiles = profilesPath ? loadProfiles(profilesPath, { source }) : null;
+    const profiles = profilesPath ? loadProfiles(profilesPath, { source, resourceRootDir: inputDir }) : null;
     const profileEntries = profiles ? collectConversationEntriesFromProfiles(source, inputDir, profiles) : [];
     const fallbackMdFiles = listMarkdownFiles(source, inputDir);
     if (!profileEntries.length && fallbackMdFiles.length === 0) {
@@ -133,7 +133,19 @@ export function compileFolderProject({ source, inputDir, title: requestedTitle }
     const ui = loadOptionalConfig(source, inputDir, "ui.yml", "ui");
     const story = loadOptionalConfig(source, inputDir, "story.yml", "story");
     validateStoryConfig(story, models);
-    const html = renderWechatHubHtml({ title, conversations: models, ui, story });
+    const previewConversationIndex = preview?.conversationId
+      ? conversations.findIndex((conversation) => (
+        String(conversation.sourceFile || "").replace(/\\/g, "/").endsWith(`/conversations/${preview.conversationId}.md`)
+        || String(conversation.sourceFile || "").replace(/\\/g, "/") === `conversations/${preview.conversationId}.md`
+      ))
+      : -1;
+    const resolvedPreview = preview
+      ? {
+        ...preview,
+        ...(previewConversationIndex >= 0 ? { conversationId: models[previewConversationIndex].id } : {})
+      }
+      : undefined;
+    const html = renderWechatHubHtml({ title, conversations: models, ui, story, preview: resolvedPreview, startInAccountView });
     const report = createBuildReport({ conversations, ui, story });
     return success(html, {
       kind: "folder",

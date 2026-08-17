@@ -1,8 +1,8 @@
-# chat-framework 可视化创作平台设计
+# chat-maker 可视化创作平台设计
 
 ## 1. 文档定位
 
-本文描述 chat-framework 可视化创作平台的目标架构、前端 Studio 与渲染后端的关系、公共项目格式以及分阶段演进路径。
+本文描述 chat-maker 可视化创作平台的目标架构、前端 Studio 与渲染后端的关系、公共项目格式以及分阶段演进路径。
 
 本文是面向未来实现的架构设计，不替代 `docs/system-design.md` 对当前代码的说明。当前 Markdown/YAML、CLI 和静态 HTML 构建能力继续兼容，并逐步迁移到本文定义的边界内。
 
@@ -25,7 +25,7 @@
 
 ### 3.1 项目文件是公共契约
 
-版本化的 Markdown/YAML 语法和文件组织是 Studio 与 chat-framework 编译器之间的公开协议。
+版本化的 Markdown/YAML 语法和文件组织是 Studio 与 chat-maker 编译器之间的公开协议。
 
 Studio 不直接依赖 renderer 的内部 JavaScript 对象；renderer 也不依赖 React 组件、表单状态或 IndexedDB。双方只共同遵守项目格式规范。
 

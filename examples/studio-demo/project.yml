@@ -1,0 +1,25 @@
+specVersion: '3.0'
+project:
+  id: studio-feature-demo
+  title: 最后一碗海龟汤
+  target: hub
+  conversations:
+    - id: incident
+      file: conversations/incident.md
+      chat: chats/incident.yml
+    - id: evidence
+      file: conversations/evidence.md
+      chat: chats/evidence.yml
+    - id: memory
+      file: conversations/memory.md
+      chat: chats/memory.yml
+    - id: answer
+      file: conversations/answer.md
+      chat: chats/answer.yml
+  documents:
+    - id: case-settings
+      file: documents/case-settings.yml
+      type: settings
+    - id: case-timeline
+      file: documents/case-timeline.yml
+      type: timeline

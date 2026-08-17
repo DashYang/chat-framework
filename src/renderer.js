@@ -750,7 +750,7 @@ export function renderHtml(ctx) {
 
       choicePanels.forEach((panel) => {
         const choiceId = panel.dataset.choiceId || '';
-        const storageKey = 'chat-framework:choice:' + location.pathname + ':' + choiceId;
+        const storageKey = 'chat-maker:choice:' + location.pathname + ':' + choiceId;
         const applyChoice = (optionId) => {
           panel.querySelectorAll('.choice-option').forEach((btn) => {
             btn.classList.toggle('selected', btn.dataset.choiceOption === optionId);

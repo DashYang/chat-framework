@@ -6,6 +6,7 @@ import { parseMarkdownArticle, renderArticleMarkdown } from "./article-renderer.
 import {
   basenameProjectPath,
   dirnameProjectPath,
+  relativeProjectPath,
   resolveProjectPath
 } from "./project-path.js";
 import { assertProjectSource } from "./project-source.js";
@@ -21,6 +22,87 @@ import { assertProjectSource } from "./project-source.js";
  */
 export function readText(source, filePath) {
   return assertProjectSource(source).readText(filePath);
+}
+
+const EXTERNAL_RESOURCE_RE = /^(?:[a-z][a-z\d+.-]*:|\/\/|#|\/)/i;
+
+function rebaseResourceReference(value, sourceDir, resourceRootDir) {
+  const reference = String(value || "").trim();
+  if (!reference || EXTERNAL_RESOURCE_RE.test(reference)) return reference;
+  const targetPath = resolveProjectPath(sourceDir, reference);
+  return relativeProjectPath(resourceRootDir, targetPath);
+}
+
+function rebaseResourceList(value, sourceDir, resourceRootDir) {
+  if (Array.isArray(value)) {
+    return value.map((item) => rebaseResourceReference(item, sourceDir, resourceRootDir));
+  }
+  return value ? rebaseResourceReference(value, sourceDir, resourceRootDir) : value;
+}
+
+function rebaseProfileResources(profile, sourceDir, resourceRootDir) {
+  profile.avatar = rebaseResourceReference(profile.avatar, sourceDir, resourceRootDir);
+  profile.identityTimeline = (profile.identityTimeline || []).map((entry) => ({
+    ...entry,
+    ...(entry.avatar !== undefined
+      ? { avatar: rebaseResourceReference(entry.avatar, sourceDir, resourceRootDir) }
+      : {})
+  }));
+  profile.moments = Object.fromEntries(Object.entries(profile.moments || {}).map(([id, moment]) => {
+    if (!moment || typeof moment !== "object" || Array.isArray(moment)) return [id, moment];
+    return [id, {
+      ...moment,
+      ...(moment.image !== undefined
+        ? { image: rebaseResourceReference(moment.image, sourceDir, resourceRootDir) }
+        : {}),
+      ...(moment.images !== undefined
+        ? { images: rebaseResourceList(moment.images, sourceDir, resourceRootDir) }
+        : {})
+    }];
+  }));
+  return profile;
+}
+
+function rebaseArticleResources(article, sourceDir, resourceRootDir) {
+  const resolveImageUrl = (value) => rebaseResourceReference(value, sourceDir, resourceRootDir);
+  return {
+    ...article,
+    cover: resolveImageUrl(article.cover),
+    images: rebaseResourceList(article.images, sourceDir, resourceRootDir),
+    html: renderArticleMarkdown(article.text, { resolveImageUrl })
+  };
+}
+
+function rebaseMessageResources(messages, sourceDir, resourceRootDir) {
+  for (const message of messages) {
+    if (message.imageUrl !== undefined) {
+      message.imageUrl = rebaseResourceReference(message.imageUrl, sourceDir, resourceRootDir);
+    }
+    if (message.audioUrl !== undefined) {
+      message.audioUrl = rebaseResourceReference(message.audioUrl, sourceDir, resourceRootDir);
+    }
+    if (message.linkCard?.image !== undefined) {
+      message.linkCard.image = rebaseResourceReference(message.linkCard.image, sourceDir, resourceRootDir);
+    }
+    if (message.articleCard) {
+      message.articleCard.cover = rebaseResourceReference(message.articleCard.cover, sourceDir, resourceRootDir);
+      message.articleCard.images = rebaseResourceList(message.articleCard.images, sourceDir, resourceRootDir);
+    }
+    if (message.contactCard?.avatar !== undefined) {
+      message.contactCard.avatar = rebaseResourceReference(message.contactCard.avatar, sourceDir, resourceRootDir);
+    }
+  }
+  return messages;
+}
+
+function rebaseChatResources(chat, sourceDir, resourceRootDir) {
+  if (chat.avatar !== undefined) {
+    chat.avatar = rebaseResourceReference(chat.avatar, sourceDir, resourceRootDir);
+  }
+  if (chat.groupInfo?.avatar !== undefined) {
+    chat.groupInfo.avatar = rebaseResourceReference(chat.groupInfo.avatar, sourceDir, resourceRootDir);
+  }
+  return chat;
 }
 
 /**
@@ -295,7 +377,7 @@ function normalizeArticleRef(ref) {
     : value;
 }
 
-function loadProfilesFromDirectory(source, dirPath) {
+function loadProfilesFromDirectory(source, dirPath, resourceRootDir) {
   const users = {};
   const files = source
     .list(dirPath)
@@ -305,8 +387,13 @@ function loadProfilesFromDirectory(source, dirPath) {
 
   for (const fileName of files) {
     const id = fileName.replace(/\.(ya?ml)$/i, "");
-    const parsed = parseSimpleYaml(readText(source, resolveProjectPath(dirPath, fileName)));
-    users[id] = normalizeUserProfile(id, parsed);
+    const filePath = resolveProjectPath(dirPath, fileName);
+    const parsed = parseSimpleYaml(readText(source, filePath));
+    users[id] = rebaseProfileResources(
+      normalizeUserProfile(id, parsed),
+      dirnameProjectPath(filePath),
+      resourceRootDir
+    );
   }
 
   return { users };
@@ -314,21 +401,28 @@ function loadProfilesFromDirectory(source, dirPath) {
 
 export function loadProfiles(profilePath, options = {}) {
   const source = assertProjectSource(options.source);
+  const resourceRootDir = options.resourceRootDir !== undefined
+    ? resolveProjectPath(".", options.resourceRootDir)
+    : dirnameProjectPath(profilePath);
   const stat = source.stat(profilePath);
   if (stat.isDirectory()) {
-    return loadProfilesFromDirectory(source, profilePath);
+    return loadProfilesFromDirectory(source, profilePath, resourceRootDir);
   }
 
   const parsed = parseSimpleYaml(readText(source, profilePath));
   const usersRaw = parsed.users || parsed;
   const users = {};
   for (const [id, profile] of Object.entries(usersRaw || {})) {
-    users[id] = normalizeUserProfile(id, profile);
+    users[id] = rebaseProfileResources(
+      normalizeUserProfile(id, profile),
+      dirnameProjectPath(profilePath),
+      resourceRootDir
+    );
   }
   return { users };
 }
 
-function loadArticlesFromDirectory(source, dirPath) {
+function loadArticlesFromDirectory(source, dirPath, resourceRootDir) {
   if (!source.exists(dirPath)) return {};
   const stat = source.stat(dirPath);
   if (!stat.isDirectory()) return {};
@@ -346,7 +440,7 @@ function loadArticlesFromDirectory(source, dirPath) {
       throw new Error(`Duplicate article id "${id}" from ${sources[id]} and ${resolveProjectPath(dirPath, fileName)}. Fix: keep only one .md/.yml article file per id, or rename one file.`);
     }
     const filePath = resolveProjectPath(dirPath, fileName);
-    articles[id] = loadArticleFromFile(source, filePath, id);
+    articles[id] = loadArticleFromFile(source, filePath, id, resourceRootDir);
     sources[id] = filePath;
   }
   return articles;
@@ -380,13 +474,12 @@ function normalizeMarkdownArticle(articleKey, raw) {
   return normalizeArticle(articleKey, parsed);
 }
 
-function loadArticleFromFile(source, filePath, articleKey) {
+function loadArticleFromFile(source, filePath, articleKey, resourceRootDir = dirnameProjectPath(filePath)) {
   const raw = readText(source, filePath);
-  if (/\.(md|markdown)$/i.test(filePath)) {
-    return normalizeMarkdownArticle(articleKey, raw);
-  }
-  const parsed = parseSimpleYaml(raw);
-  return normalizeArticle(articleKey, parsed);
+  const article = /\.(md|markdown)$/i.test(filePath)
+    ? normalizeMarkdownArticle(articleKey, raw)
+    : normalizeArticle(articleKey, parseSimpleYaml(raw));
+  return rebaseArticleResources(article, dirnameProjectPath(filePath), resourceRootDir);
 }
 
 function mergeExplicitOfficialArticles(source, target, profiles, baseDir) {
@@ -404,7 +497,7 @@ function mergeExplicitOfficialArticles(source, target, profiles, baseDir) {
       if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
         throw new Error(`Official article file not found: ${ref}. Fix: check profile.officialArticles path relative to the build input folder, or use an existing article id.`);
       }
-      target[articleId] = loadArticleFromFile(source, filePath, articleId);
+      target[articleId] = loadArticleFromFile(source, filePath, articleId, baseDir);
     }
   }
 }
@@ -421,7 +514,7 @@ function mergeDocLinkCardArticles(source, target, messages, resourceRootDir) {
     if (!source.exists(filePath) || !source.stat(filePath).isFile()) {
       throw new Error(`link-card doc file not found: ${docPath}. Fix: check [link-card] doc/ref path relative to the markdown resource root.`);
     }
-    target[articleId] = loadArticleFromFile(source, filePath, articleId);
+    target[articleId] = loadArticleFromFile(source, filePath, articleId, resourceRootDir);
   }
 }
 
@@ -444,11 +537,12 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
   try {
     const source = assertProjectSource(options.source);
     const rootDir = dirnameProjectPath(markdownPath);
-    const resourceRootDir = options.resourceRootDir
+    const resourceRootDir = options.resourceRootDir !== undefined
       ? resolveProjectPath(".", options.resourceRootDir)
       : rootDir;
     const md = readText(source, markdownPath);
     const parsed = parseChatMarkdown(md);
+    rebaseMessageResources(parsed.messages, rootDir, resourceRootDir);
 
     const profilePath = options.profilePath
       ? resolveProjectPath(".", options.profilePath)
@@ -460,13 +554,17 @@ export function loadConversationFromMarkdown(markdownPath, options = {}) {
     const articlesPath = options.articlesPath
       ? resolveProjectPath(".", options.articlesPath)
       : resolveProjectPath(rootDir, parsed.frontmatter.articles || "articles");
-    const profiles = options.profiles || loadProfiles(profilePath, { source });
+    const profiles = options.profiles || loadProfiles(profilePath, { source, resourceRootDir });
     const profileStat = source.stat(profilePath);
-    const articles = loadArticlesFromDirectory(source, articlesPath);
+    const articles = loadArticlesFromDirectory(source, articlesPath, resourceRootDir);
     mergeExplicitOfficialArticles(source, articles, profiles, resourceRootDir);
     mergeDocLinkCardArticles(source, articles, parsed.messages, resourceRootDir);
     const chatWrap = chatPath ? parseSimpleYaml(readText(source, chatPath)) : {};
-    const chat = normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId);
+    const chat = rebaseChatResources(
+      normalizeChat(chatWrap.chat || {}, parsed.messages, profiles, options.selfId),
+      chatPath ? dirnameProjectPath(chatPath) : rootDir,
+      resourceRootDir
+    );
     if (!chat.require) {
       const frontmatterRequire = normalizeRequire(parsed.frontmatter.require);
       if (frontmatterRequire) chat.require = frontmatterRequire;

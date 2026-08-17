@@ -1,0 +1,4 @@
+chat:
+  type: single
+  self: solver
+  title: 最后一问

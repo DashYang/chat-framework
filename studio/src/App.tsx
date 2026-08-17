@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import JSZip from "jszip";
 import { compileDocumentProject, compileFolderProject } from "../../src/compiler.js";
-import { createStarterProject, createStudioDemoProject, nextEntityId, parseAuthoringProject, projectFilesToSource, serializeAuthoringProject, STUDIO_DEMO_PROJECT_ID } from "../../src/format-sdk.js";
+import { createStarterProject, createStudioDemoProject, nextEntityId, parseAuthoringProject, projectFilesToSource, serializeAuthoringProject, studioProjectPersistKey, STUDIO_DEMO_PROJECT_ID } from "../../src/format-sdk.js";
+import { addCompletionGatedLibraryNav } from "../../src/site-nav.js";
 import { listProjects, loadProject, removeProject, saveProject, syncBuiltinProject } from "./storage";
 import DependencyGraphPanel from "./DependencyGraphPanel";
 import type { GraphNavigationTarget } from "./DependencyGraphPanel";
@@ -9,8 +10,9 @@ import type { Article, Asset, AuthoringProject, Conversation, Diagnostic, Librar
 
 type Panel = "conversations" | "social" | "articles" | "participants" | "library" | "story" | "dependencies" | "project" | "files";
 type MobileView = "projects" | "editor" | "preview";
-type WorkerResult = { requestId: number; html?: string; diagnostics: Diagnostic[]; files?: Record<string, string | Uint8Array> };
+type WorkerResult = { requestId: number; channel?: "editor" | "player"; html?: string; diagnostics: Diagnostic[]; files?: Record<string, string | Uint8Array> };
 type FocusRequest = GraphNavigationTarget & { token: number };
+type StudioPreviewTarget = { kind: "conversation" | "message" | "article" | "social" | "library"; conversationId?: string; entityId: string };
 
 const clone = <T,>(value: T): T => structuredClone(value);
 const projectFactory = (): AuthoringProject => createStarterProject() as AuthoringProject;
@@ -65,16 +67,25 @@ export default function App() {
   const [mobileView, setMobileView] = useState<MobileView>("editor");
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [playerHtml, setPlayerHtml] = useState("");
+  const [playerOpen, setPlayerOpen] = useState(false);
+  const [playerLoading, setPlayerLoading] = useState(false);
+  const [playerError, setPlayerError] = useState("");
   const [files, setFiles] = useState<Record<string, string | Uint8Array>>({});
   const [saveStatus, setSaveStatus] = useState("本地草稿");
   const [undoStack, setUndoStack] = useState<AuthoringProject[]>([]);
   const [redoStack, setRedoStack] = useState<AuthoringProject[]>([]);
   const [draggedMessage, setDraggedMessage] = useState("");
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<StudioPreviewTarget>({ kind: "conversation", conversationId: "main", entityId: "main" });
+  const [previewRevision, setPreviewRevision] = useState(0);
   const workerRef = useRef<Worker | null>(null);
   const requestId = useRef(0);
-  const latestResult = useRef(0);
+  const latestEditorResult = useRef(0);
+  const latestPlayerResult = useRef(0);
+  const requestChannels = useRef(new Map<number, "editor" | "player">());
   const importRef = useRef<HTMLInputElement>(null);
+  const playerFrameRef = useRef<HTMLIFrameElement>(null);
 
   const refreshProjects = useCallback(async () => setProjects(await listProjects()), []);
   const activeConversation = project.conversations.find((conversation) => conversation.id === activeConversationId) || project.conversations[0];
@@ -84,6 +95,12 @@ export default function App() {
       setActiveConversationId(project.conversations[0]?.id || "");
     }
   }, [activeConversationId, project.conversations]);
+
+  useEffect(() => {
+    const first = project.conversations[0];
+    if (!first) return;
+    setPreviewTarget({ kind: "conversation", conversationId: first.id, entityId: first.id });
+  }, [project.id]);
 
   useEffect(() => {
     const boot = async () => {
@@ -100,11 +117,22 @@ export default function App() {
   useEffect(() => {
     workerRef.current = new Worker(new URL("./preview.worker.ts", import.meta.url), { type: "module" });
     workerRef.current.onmessage = (event: MessageEvent<WorkerResult>) => {
+      const channel = event.data.channel || requestChannels.current.get(event.data.requestId) || "editor";
+      requestChannels.current.delete(event.data.requestId);
+      const latestResult = channel === "player" ? latestPlayerResult : latestEditorResult;
       if (event.data.requestId < latestResult.current) return;
       latestResult.current = event.data.requestId;
       setDiagnostics(event.data.diagnostics || []);
       if (event.data.files) setFiles(event.data.files);
-      if (event.data.html) setPreviewHtml(event.data.html);
+      if (channel === "player") {
+        setPlayerLoading(false);
+        if (event.data.html) {
+          setPlayerError("");
+          setPlayerHtml(event.data.html);
+        } else {
+          setPlayerError(event.data.diagnostics?.[0]?.message || "作品无法启动，请先修复编辑器中的格式问题。");
+        }
+      } else if (event.data.html) setPreviewHtml(event.data.html);
     };
     return () => workerRef.current?.terminate();
   }, []);
@@ -121,12 +149,25 @@ export default function App() {
         await refreshProjects();
       }
     }, 450);
+    return () => window.clearTimeout(timer);
+  }, [project, ready, refreshProjects]);
+
+  useEffect(() => {
+    if (!ready) return;
     const previewTimer = window.setTimeout(() => {
       const next = ++requestId.current;
-      workerRef.current?.postMessage({ requestId: next, project });
+      requestChannels.current.set(next, "editor");
+      workerRef.current?.postMessage({ requestId: next, channel: "editor", project, preview: previewTarget });
     }, 320);
-    return () => { window.clearTimeout(timer); window.clearTimeout(previewTimer); };
-  }, [project, ready, refreshProjects]);
+    return () => window.clearTimeout(previewTimer);
+  }, [previewRevision, previewTarget, project, ready]);
+
+  useEffect(() => {
+    setPlayerHtml("");
+    setPlayerOpen(false);
+    setPlayerLoading(false);
+    setPlayerError("");
+  }, [project]);
 
   const update = useCallback((recipe: (draft: AuthoringProject) => void) => {
     setProjectState((current) => {
@@ -244,6 +285,33 @@ export default function App() {
 
   const exportHtml = () => previewHtml && downloadBlob(new Blob([previewHtml], { type: "text/html;charset=utf-8" }), `${safeFileName(project.title, "chat")}.html`);
 
+  const openPlayer = () => {
+    if (playerHtml) {
+      setPlayerOpen(true);
+      return;
+    }
+    setPlayerOpen(true);
+    setPlayerLoading(true);
+    setPlayerError("");
+    const next = ++requestId.current;
+    requestChannels.current.set(next, "player");
+    workerRef.current?.postMessage({ requestId: next, channel: "player", project });
+  };
+
+  const sendPlayerAudioCommand = (action: "pause" | "resume") => {
+    playerFrameRef.current?.contentWindow?.postMessage({ type: "chat-maker:studio-playback", action }, "*");
+  };
+
+  const closePlayer = () => {
+    sendPlayerAudioCommand("pause");
+    setPlayerOpen(false);
+  };
+
+  useEffect(() => {
+    if (!playerHtml) return;
+    sendPlayerAudioCommand(playerOpen ? "resume" : "pause");
+  }, [playerHtml, playerOpen]);
+
   const exportPackage = async () => {
     const result = serializeAuthoringProject(project, { assetMode: "files" });
     if (result.diagnostics.length) { setDiagnostics(result.diagnostics as Diagnostic[]); return; }
@@ -256,19 +324,21 @@ export default function App() {
     const serialized = serializeAuthoringProject(project, { assetMode: "files" });
     if (serialized.diagnostics.length) { setDiagnostics(serialized.diagnostics as Diagnostic[]); return; }
     const source = projectFilesToSource(serialized.files);
-    const hub = compileFolderProject({ source, inputDir: "", title: project.title });
+    const hub = compileFolderProject({ source, inputDir: "", title: project.title, preview: undefined, startInAccountView: false });
     if (!("html" in hub)) { setDiagnostics(hub.diagnostics as Diagnostic[]); return; }
     const zip = new JSZip();
-    const siteNavCss = `<style>.cf-site-nav{position:fixed;right:14px;bottom:76px;z-index:9999;padding:9px 12px;border-radius:999px;background:#16765b;color:white!important;text-decoration:none;font:600 12px system-ui;box-shadow:0 6px 20px #0003}</style>`;
-    const withSiteNav = (html: string, href: string, label: string) => html.replace("</body>", `${siteNavCss}<a class="cf-site-nav" href="${href}">${label}</a></body>`);
-    zip.file("index.html", withSiteNav(hub.html!, "library.html", "资料库 ↗"));
+    zip.file("index.html", addCompletionGatedLibraryNav(hub.html!, {
+      href: "library.html",
+      label: "资料库 ↗",
+      persistKey: studioProjectPersistKey(project.id)
+    }));
     Object.entries(serialized.files).filter(([path]) => path.startsWith("assets/")).forEach(([path, value]) => zip.file(path, value));
     for (const document of project.documents) {
       const inputPath = `documents/${document.id}.yml`;
       const outputPath = `documents/${document.id}.html`;
       const result = compileDocumentProject({ source, inputPath, outputPath });
       if (!("html" in result)) { setDiagnostics(result.diagnostics as Diagnostic[]); return; }
-      zip.file(outputPath, withSiteNav(result.html!, "../library.html", "← 资料库"));
+      zip.file(outputPath, result.html!.replace("</body>", `<style>.cm-site-nav{position:fixed;right:14px;bottom:76px;z-index:9999;padding:9px 12px;border-radius:999px;background:#16765b;color:white!important;text-decoration:none;font:600 12px system-ui;box-shadow:0 6px 20px #0003}</style><a class="cm-site-nav" href="../library.html">← 资料库</a></body>`));
     }
     const links = project.documents.map((document) => `<li><a href="documents/${document.id}.html">${escapeHtmlText(document.title)}</a></li>`).join("");
     const siteTitle = escapeHtmlText(project.title);
@@ -301,12 +371,21 @@ export default function App() {
   const navigateFromGraph = (target: GraphNavigationTarget) => {
     setPanel(target.panel);
     if (target.conversationId) setActiveConversationId(target.conversationId);
+    if (target.panel === "articles") setPreviewTarget({ kind: "article", entityId: target.entityId });
+    else if (target.panel === "social") setPreviewTarget({ kind: "social", entityId: target.entityId });
+    else if (target.panel === "conversations") {
+      setPreviewTarget({
+        kind: target.entityId === target.conversationId ? "conversation" : "message",
+        conversationId: target.conversationId,
+        entityId: target.entityId
+      });
+    }
     setFocusRequest({ ...target, token: Date.now() });
   };
 
   return <div className="app-shell">
     <header className="topbar">
-      <button className="brand" onClick={() => setMobileView("projects")}><span>CF</span> Chat Framework Studio</button>
+      <button className="brand" onClick={() => setMobileView("projects")}><span>CM</span> Chat Maker Studio</button>
       <div className="top-actions">
         <button className="icon-button" onClick={undo} disabled={!undoStack.length} title="撤销">↶</button>
         <button className="icon-button" onClick={redo} disabled={!redoStack.length} title="重做">↷</button>
@@ -314,6 +393,7 @@ export default function App() {
         <button onClick={() => importRef.current?.click()}>导入项目</button>
         <button onClick={() => void exportPackage()}>导出项目</button>
         <button onClick={() => void exportWebsite()}>导出网站</button>
+        <button className="primary" onClick={openPlayer} disabled={!ready}>{playerHtml ? "继续播放" : "播放"}</button>
         <button className="primary" onClick={exportHtml} disabled={!previewHtml}>下载 HTML</button>
         <input ref={importRef} hidden type="file" accept=".zip,application/zip" onChange={(event) => event.target.files?.[0] && void importPackage(event.target.files[0])} />
       </div>
@@ -339,34 +419,45 @@ export default function App() {
         <span className={errorCount ? "diagnostic-badge error" : "diagnostic-badge"}>{errorCount ? `${errorCount} 个问题` : "格式有效"}</span>
       </div>
       <div className="panel-tabs">
-        {(["conversations", "social", "articles", "participants", "library", "story", "dependencies", "project", "files"] as Panel[]).map((item) => <button key={item} className={panel === item ? "active" : ""} onClick={() => setPanel(item)}>{({ conversations: "对话", social: "朋友圈", articles: "文章", participants: "人物", library: "资料库", story: "剧情", dependencies: "依赖图", project: "外观", files: "生成文件" })[item]}</button>)}
+        {(["conversations", "social", "articles", "participants", "library", "story", "dependencies", "project", "files"] as Panel[]).map((item) => <button key={item} className={panel === item ? "active" : ""} onClick={() => setPanel(item)}>{({ conversations: "对话", social: "社交", articles: "文章", participants: "人物", library: "资料库", story: "剧情", dependencies: "依赖图", project: "外观", files: "生成文件" })[item]}</button>)}
       </div>
       <div className="editor-scroll">
         {diagnostics.length > 0 && <div className="diagnostics"><strong>诊断</strong>{diagnostics.map((item, index) => <button key={`${item.code}-${index}`} onClick={() => item.entityId && document.getElementById(`entity-${item.entityId}`)?.scrollIntoView({ behavior: "smooth" })}><span>{item.severity === "error" ? "!" : "i"}</span>{item.message}</button>)}</div>}
-        {panel === "conversations" && activeConversation && <ConversationsPanel project={project} conversation={activeConversation} activeConversationId={activeConversation.id} setActiveConversationId={setActiveConversationId} diagnostics={diagnostics} addMessage={addMessage} patchMessage={patchMessage} update={update} addAsset={addAsset} draggedMessage={draggedMessage} setDraggedMessage={setDraggedMessage} reorderMessage={reorderMessage} focusRequest={focusRequest} />}
-        {panel === "social" && <SocialPanel project={project} update={update} addAsset={addAsset} focusRequest={focusRequest} />}
-        {panel === "articles" && <ArticlesPanel project={project} update={update} addAsset={addAsset} focusRequest={focusRequest} />}
+        {panel === "conversations" && activeConversation && <ConversationsPanel project={project} conversation={activeConversation} activeConversationId={activeConversation.id} setActiveConversationId={setActiveConversationId} diagnostics={diagnostics} addMessage={addMessage} patchMessage={patchMessage} update={update} addAsset={addAsset} draggedMessage={draggedMessage} setDraggedMessage={setDraggedMessage} reorderMessage={reorderMessage} focusRequest={focusRequest} onPreviewTarget={setPreviewTarget} />}
+        {panel === "social" && <SocialPanel project={project} update={update} addAsset={addAsset} focusRequest={focusRequest} onPreviewTarget={setPreviewTarget} />}
+        {panel === "articles" && <ArticlesPanel project={project} update={update} addAsset={addAsset} focusRequest={focusRequest} onPreviewTarget={setPreviewTarget} />}
         {panel === "participants" && <ParticipantsPanel project={project} diagnostics={diagnostics} update={update} addAsset={addAsset} />}
-        {panel === "library" && <LibraryPanel project={project} update={update} addAsset={addAsset} />}
+        {panel === "library" && <LibraryPanel project={project} update={update} addAsset={addAsset} onPreviewTarget={setPreviewTarget} />}
         {panel === "story" && <StoryPanel project={project} update={update} />}
         {panel === "dependencies" && <DependencyGraphPanel project={project} onNavigate={navigateFromGraph} />}
-        {panel === "project" && <ProjectPanel project={project} diagnostics={diagnostics} update={update} />}
+        {panel === "project" && <ProjectPanel project={project} diagnostics={diagnostics} update={update} addAsset={addAsset} />}
         {panel === "files" && <FilesPanel files={fileEntries} />}
       </div>
     </main>
 
     <section className={`preview-pane mobile-${mobileView}`}>
-      <div className="preview-heading"><div><span className="live-dot" />实时预览</div><button onClick={() => setPreviewHtml((html) => `${html} `)}>刷新</button></div>
+      <div className="preview-heading"><div><span className="live-dot" />编辑预览</div><button onClick={() => setPreviewRevision((value) => value + 1)}>刷新当前内容</button></div>
       <div className="phone-stage"><div className="phone-frame"><iframe title="作品预览" sandbox="allow-scripts allow-forms allow-popups" srcDoc={previewHtml} /></div></div>
       <p className="preview-note">预览由真实 Markdown/YAML 和共享编译器生成</p>
+    </section>
+
+    <section className={`studio-player ${playerOpen ? "show" : ""}`} role="dialog" aria-modal="true" aria-label="作品播放" aria-hidden={!playerOpen}>
+      <div className="studio-player-heading"><strong>{project.title}</strong><button onClick={closePlayer}>关闭</button></div>
+      <div className="studio-player-stage">
+        {playerLoading && <p className="studio-player-loading">正在启动作品…</p>}
+        {playerHtml
+          ? <div className="studio-player-phone"><iframe ref={playerFrameRef} title="作品播放" sandbox="allow-scripts allow-forms allow-popups" srcDoc={playerHtml} onLoad={() => sendPlayerAudioCommand(playerOpen ? "resume" : "pause")} /></div>
+          : !playerLoading && <p className="studio-player-error">{playerError || "播放器尚未生成内容。"}</p>}
+      </div>
+      <p className="studio-player-note">关闭会暂停 BGM，再次打开时从当前位置继续；需要重置进度时，请在手机内点击“重置内容”。</p>
     </section>
   </div>;
 }
 
-function ConversationsPanel({ project, conversation, activeConversationId, setActiveConversationId, diagnostics, addMessage, patchMessage, update, addAsset, draggedMessage, setDraggedMessage, reorderMessage, focusRequest }: {
+function ConversationsPanel({ project, conversation, activeConversationId, setActiveConversationId, diagnostics, addMessage, patchMessage, update, addAsset, draggedMessage, setDraggedMessage, reorderMessage, focusRequest, onPreviewTarget }: {
   project: AuthoringProject; conversation: Conversation; activeConversationId: string; setActiveConversationId: (id: string) => void; diagnostics: Diagnostic[];
   addMessage: (kind: MessageKind) => void; patchMessage: (id: string, patch: Partial<Message>) => void;
-  update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; draggedMessage: string; setDraggedMessage: (id: string) => void; reorderMessage: (id: string) => void; focusRequest: FocusRequest | null;
+  update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; draggedMessage: string; setDraggedMessage: (id: string) => void; reorderMessage: (id: string) => void; focusRequest: FocusRequest | null; onPreviewTarget: (target: StudioPreviewTarget) => void;
 }) {
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [requirementExpanded, setRequirementExpanded] = useState(false);
@@ -378,6 +469,7 @@ function ConversationsPanel({ project, conversation, activeConversationId, setAc
     const id = nextEntityId("conversation", project.conversations.map((item) => item.id));
     update((draft) => { draft.conversations.push({ id, title: "新对话", type: "single", selfId: draft.selfId, messages: [{ id: "m1", senderId: draft.selfId, timeRaw: "2026-01-01 10:00:00", kind: "text", text: "第一条消息", quoteId: "", recallDelaySec: 0 }] }); });
     setActiveConversationId(id);
+    onPreviewTarget({ kind: "conversation", conversationId: id, entityId: id });
   };
   const patchConversation = (patch: Partial<Conversation>) => update((draft) => {
     const target = draft.conversations.find((item) => item.id === activeConversationId);
@@ -392,7 +484,7 @@ function ConversationsPanel({ project, conversation, activeConversationId, setAc
   const selfName = project.participants.find((person) => person.id === conversation.selfId)?.name || conversation.selfId;
   return <div>
     <div className="section-heading"><div><h2>对话</h2><p>共享人物库下可创建单聊、群聊和多个对话，名称与右侧预览保持一致。</p></div><button onClick={addConversation}>＋ 添加对话</button></div>
-    <div className="content-switcher">{project.conversations.map((item) => <button key={item.id} className={item.id === activeConversationId ? "active" : ""} onClick={() => setActiveConversationId(item.id)}><strong>{item.title}</strong><small>{item.type === "group" ? "群聊" : "单聊"} · {item.messages.length} 条</small></button>)}</div>
+    <div className="content-switcher">{project.conversations.map((item) => <button key={item.id} className={item.id === activeConversationId ? "active" : ""} onClick={() => { setActiveConversationId(item.id); onPreviewTarget({ kind: "conversation", conversationId: item.id, entityId: item.id }); }}><strong>{item.title}</strong><small>{item.type === "group" ? "群聊" : "单聊"} · {item.messages.length} 条</small></button>)}</div>
     <div className={`module-settings collapsible-editor ${settingsExpanded ? "expanded" : "collapsed"}`}>
       <EditorSummary title="对话设置" tag={conversation.type === "group" ? "群聊" : "单聊"} summary={`当前账号：${selfName} · ${conversation.messages.length} 条消息`} expanded={settingsExpanded} onToggle={() => setSettingsExpanded((value) => !value)} />
       {settingsExpanded && <div className="editor-details field-row three">
@@ -406,13 +498,13 @@ function ConversationsPanel({ project, conversation, activeConversationId, setAc
       {requirementExpanded && <div className="editor-details"><RequirementFields item={conversation} onChange={(value) => patchConversation(value)} /></div>}
     </div>
     {project.conversations.length > 1 && <button className="inline-danger" onClick={() => { const next = project.conversations.find((item) => item.id !== conversation.id); if (next) setActiveConversationId(next.id); update((draft) => { draft.conversations = draft.conversations.filter((item) => item.id !== conversation.id); }); }}>删除当前对话</button>}
-    <MessagesPanel project={project} conversation={conversation} diagnostics={diagnostics} addMessage={addMessage} patchMessage={patchMessage} update={update} addAsset={addAsset} draggedMessage={draggedMessage} setDraggedMessage={setDraggedMessage} reorderMessage={reorderMessage} focusRequest={focusRequest} />
+    <MessagesPanel project={project} conversation={conversation} diagnostics={diagnostics} addMessage={addMessage} patchMessage={patchMessage} update={update} addAsset={addAsset} draggedMessage={draggedMessage} setDraggedMessage={setDraggedMessage} reorderMessage={reorderMessage} focusRequest={focusRequest} onPreviewTarget={onPreviewTarget} />
   </div>;
 }
 
-function MessagesPanel({ project, conversation, diagnostics, addMessage, patchMessage, update, addAsset, draggedMessage, setDraggedMessage, reorderMessage, focusRequest }: {
+function MessagesPanel({ project, conversation, diagnostics, addMessage, patchMessage, update, addAsset, draggedMessage, setDraggedMessage, reorderMessage, focusRequest, onPreviewTarget }: {
   project: AuthoringProject; conversation: Conversation; diagnostics: Diagnostic[]; addMessage: (kind: MessageKind) => void; patchMessage: (id: string, patch: Partial<Message>) => void;
-  update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; draggedMessage: string; setDraggedMessage: (id: string) => void; reorderMessage: (id: string) => void; focusRequest: FocusRequest | null;
+  update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; draggedMessage: string; setDraggedMessage: (id: string) => void; reorderMessage: (id: string) => void; focusRequest: FocusRequest | null; onPreviewTarget: (target: StudioPreviewTarget) => void;
 }) {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(() => new Set());
   useEffect(() => setExpandedMessages(new Set()), [conversation.id, project.id]);
@@ -451,7 +543,7 @@ function MessagesPanel({ project, conversation, diagnostics, addMessage, patchMe
         return <article id={`entity-${message.id}`} key={message.id} draggable className={`message-card ${expanded ? "expanded" : "collapsed"} ${hasError ? "has-error" : ""} ${draggedMessage === message.id ? "dragging" : ""}`} onDragStart={() => setDraggedMessage(message.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => reorderMessage(message.id)}>
         <div className="card-index"><span>⋮⋮</span>{String(index + 1).padStart(2, "0")}</div>
         <div className="card-body">
-          <button type="button" className="message-summary" aria-expanded={expanded} onClick={() => toggleMessage(message.id)}>
+          <button type="button" className="message-summary" aria-expanded={expanded} onClick={() => { toggleMessage(message.id); onPreviewTarget({ kind: "message", conversationId: conversation.id, entityId: message.id }); }}>
             <span className={`message-kind kind-${message.kind}`}>{kindLabels[message.kind]}</span>
             <span className="message-summary-text">{summaryFor(message)}</span>
             {hasError && <span className="message-error-mark" title="此消息存在问题">!</span>}
@@ -488,7 +580,7 @@ function ChoiceEditor({ message, patchMessage, participants }: { message: Messag
   return <div className="choice-editor"><div className="field-row three"><label>问题<input value={choice.prompt} onChange={(event) => patchChoice({ prompt: event.target.value })} /></label><label>回复者<select value={choice.speakerId} onChange={(event) => patchChoice({ speakerId: event.target.value })}>{participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>计分范围<select value={choice.scope} onChange={(event) => patchChoice({ scope: event.target.value as "account" | "global" })}><option value="account">当前账号</option><option value="global">全局</option></select></label></div><div className="choice-options">{choice.options.map((option, index) => <div className="choice-option" key={`${option.id}-${index}`}><input aria-label="选项 ID" value={option.id} onChange={(event) => patchChoice({ options: choice.options.map((item, i) => i === index ? { ...item, id: event.target.value } : item) })} /><input aria-label="按钮文案" value={option.label} onChange={(event) => patchChoice({ options: choice.options.map((item, i) => i === index ? { ...item, label: event.target.value } : item) })} /><input aria-label="回复文本" value={option.text} onChange={(event) => patchChoice({ options: choice.options.map((item, i) => i === index ? { ...item, text: event.target.value } : item) })} /><input aria-label="得分" type="number" value={option.score} onChange={(event) => patchChoice({ options: choice.options.map((item, i) => i === index ? { ...item, score: Number(event.target.value) } : item) })} /><input aria-label="Flags" placeholder="flags" value={option.flags.join(", ")} onChange={(event) => patchChoice({ options: choice.options.map((item, i) => i === index ? { ...item, flags: event.target.value.split(",").map((flag) => flag.trim()).filter(Boolean) } : item) })} /><button className="remove-button" onClick={() => patchChoice({ options: choice.options.filter((_, i) => i !== index) })}>×</button></div>)}</div><button className="inline-button" onClick={() => patchChoice({ options: [...choice.options, { id: `option-${choice.options.length + 1}`, label: `选项 ${choice.options.length + 1}`, text: "", score: 0, flags: [] }] })}>＋ 添加选项</button></div>;
 }
 
-function SocialPanel({ project, update, addAsset, focusRequest }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; focusRequest: FocusRequest | null }) {
+function SocialPanel({ project, update, addAsset, focusRequest, onPreviewTarget }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; focusRequest: FocusRequest | null; onPreviewTarget: (target: StudioPreviewTarget) => void }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   useEffect(() => setExpanded(new Set()), [project.id]);
   useEffect(() => {
@@ -500,15 +592,16 @@ function SocialPanel({ project, update, addAsset, focusRequest }: { project: Aut
   const patch = (id: string, value: Partial<SocialPost>) => update((draft) => { const target = draft.socialPosts.find((item) => item.id === id); if (target) Object.assign(target, value); });
   const add = () => {
     const id = nextEntityId("moment", project.socialPosts.map((item) => item.id));
-    update((draft) => { draft.socialPosts.push({ id, authorId: draft.selfId, publishAt: "2026-01-01 10:00:00", text: "新的朋友圈", images: [] }); });
+    update((draft) => { draft.socialPosts.push({ id, authorId: draft.selfId, publishAt: "2026-01-01 10:00:00", text: "新的社交动态", images: [] }); });
     setExpanded((current) => new Set(current).add(id));
+    onPreviewTarget({ kind: "social", entityId: id });
   };
-  return <div><div className="section-heading"><div><h2>朋友圈</h2><p>默认显示作者与正文摘要，点击后查看和编辑完整内容。</p></div><button onClick={add}>＋ 添加朋友圈</button></div>
-    <div className="module-list">{project.socialPosts.map((post) => { const open = expanded.has(post.id); const author = project.participants.find((person) => person.id === post.authorId)?.name || post.authorId; return <article className={`settings-card compact-module-card ${open ? "expanded" : "collapsed"}`} id={`entity-${post.id}`} key={post.id}><button type="button" className="message-summary" aria-expanded={open} onClick={() => toggle(post.id)}><span className="message-kind kind-social">朋友圈</span><span className="summary-author">{author}</span><span className="message-summary-text">{post.text.replace(/\s+/g, " ").trim() || `${post.images.length} 张图片`}</span><span className="message-expand-icon">⌄</span></button>{open && <div className="compact-module-details"><div className="field-row two"><label>作者<select value={post.authorId} onChange={(event) => patch(post.id, { authorId: event.target.value })}>{project.participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>发布时间<input value={post.publishAt} onChange={(event) => patch(post.id, { publishAt: event.target.value })} /></label></div><label>正文<textarea rows={4} value={post.text} onChange={(event) => patch(post.id, { text: event.target.value })} /></label><label>图片（每行一个 URL 或 asset 引用）<textarea rows={3} value={post.images.join("\n")} onChange={(event) => patch(post.id, { images: event.target.value.split(/\n+/).map((item) => item.trim()).filter(Boolean) })} /></label><RequirementFields item={post} onChange={(value) => patch(post.id, value)} /><div className="module-card-actions"><label className="file-button">添加本地图片<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(post.id, { images: [...post.images, await addAsset(file)] }); }} /></label><button className="inline-danger" onClick={() => update((draft) => { draft.socialPosts = draft.socialPosts.filter((item) => item.id !== post.id); })}>删除朋友圈</button></div></div>}</article>; })}</div>
+  return <div><div className="section-heading"><div><h2>社交</h2><p>默认显示作者与正文摘要，点击后编辑并在右侧预览社交页效果。</p></div><button onClick={add}>＋ 添加社交动态</button></div>
+    <div className="module-list">{project.socialPosts.map((post) => { const open = expanded.has(post.id); const author = project.participants.find((person) => person.id === post.authorId)?.name || post.authorId; return <article className={`settings-card compact-module-card ${open ? "expanded" : "collapsed"}`} id={`entity-${post.id}`} key={post.id}><button type="button" className="message-summary" aria-expanded={open} onClick={() => { toggle(post.id); onPreviewTarget({ kind: "social", entityId: post.id }); }}><span className="message-kind kind-social">社交</span><span className="summary-author">{author}</span><span className="message-summary-text">{post.text.replace(/\s+/g, " ").trim() || `${post.images.length} 张图片`}</span><span className="message-expand-icon">⌄</span></button>{open && <div className="compact-module-details"><div className="field-row two"><label>作者<select value={post.authorId} onChange={(event) => patch(post.id, { authorId: event.target.value })}>{project.participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>发布时间<input value={post.publishAt} onChange={(event) => patch(post.id, { publishAt: event.target.value })} /></label></div><label>正文<textarea rows={4} value={post.text} onChange={(event) => patch(post.id, { text: event.target.value })} /></label><label>图片（每行一个 URL 或 asset 引用）<textarea rows={3} value={post.images.join("\n")} onChange={(event) => patch(post.id, { images: event.target.value.split(/\n+/).map((item) => item.trim()).filter(Boolean) })} /></label><RequirementFields item={post} onChange={(value) => patch(post.id, value)} /><div className="module-card-actions"><label className="file-button">添加本地图片<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(post.id, { images: [...post.images, await addAsset(file)] }); }} /></label><button className="inline-danger" onClick={() => update((draft) => { draft.socialPosts = draft.socialPosts.filter((item) => item.id !== post.id); })}>删除社交动态</button></div></div>}</article>; })}</div>
   </div>;
 }
 
-function ArticlesPanel({ project, update, addAsset, focusRequest }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; focusRequest: FocusRequest | null }) {
+function ArticlesPanel({ project, update, addAsset, focusRequest, onPreviewTarget }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; focusRequest: FocusRequest | null; onPreviewTarget: (target: StudioPreviewTarget) => void }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   useEffect(() => setExpanded(new Set()), [project.id]);
   useEffect(() => {
@@ -520,7 +613,7 @@ function ArticlesPanel({ project, update, addAsset, focusRequest }: { project: A
   const patch = (id: string, value: Partial<Article>) => { if (value.id !== undefined && value.id !== id) setExpanded((current) => { const next = new Set(current); if (next.delete(id)) next.add(value.id!); return next; }); update((draft) => { const target = draft.articles.find((item) => item.id === id); if (target) Object.assign(target, value); }); };
   const add = () => { const id = nextEntityId("article", project.articles.map((item) => item.id)); update((draft) => { draft.articles.push({ id, authorId: draft.selfId, publishAt: "2026-01-01 09:00:00", title: "新文章", cover: "", summary: "", body: "# 新文章\n\n从这里开始写正文。", images: [] }); }); setExpanded((current) => new Set(current).add(id)); };
   return <div><div className="section-heading"><div><h2>文章</h2><p>默认显示标题、作者与摘要，点击后编辑 Markdown 正文和完整属性。</p></div><button onClick={add}>＋ 添加文章</button></div>
-    <div className="module-list">{project.articles.map((article) => { const open = expanded.has(article.id); const author = project.participants.find((person) => person.id === article.authorId)?.name || article.authorId; const summary = article.summary || article.body.replace(/[#*_>`\[\]]/g, " ").replace(/\s+/g, " ").trim(); return <article className={`settings-card article-editor-card compact-module-card ${open ? "expanded" : "collapsed"}`} id={`entity-${article.id}`} key={article.id}><button type="button" className="message-summary" aria-expanded={open} onClick={() => toggle(article.id)}><span className="message-kind kind-article">文章</span><strong className="summary-title">{article.title}</strong><span className="summary-author">{author}</span><span className="message-summary-text">{summary || "暂无摘要"}</span><span className="message-expand-icon">⌄</span></button>{open && <div className="compact-module-details"><div className="field-row two"><label>标题<input value={article.title} onChange={(event) => patch(article.id, { title: event.target.value })} /></label><label>稳定 ID<input value={article.id} onChange={(event) => patch(article.id, { id: event.target.value })} /></label></div><div className="field-row two"><label>作者<select value={article.authorId} onChange={(event) => patch(article.id, { authorId: event.target.value })}>{project.participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>发布时间<input value={article.publishAt} onChange={(event) => patch(article.id, { publishAt: event.target.value })} /></label></div><label>摘要<textarea rows={2} value={article.summary} onChange={(event) => patch(article.id, { summary: event.target.value })} /></label><label>封面<input value={article.cover} placeholder="https://… 或 asset:…" onChange={(event) => patch(article.id, { cover: event.target.value })} /></label><label className="file-button">上传封面<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(article.id, { cover: await addAsset(file) }); }} /></label><label>Markdown 正文<textarea className="markdown-editor" rows={12} value={article.body} onChange={(event) => patch(article.id, { body: event.target.value })} /></label><label>附图（每行一个 URL 或 asset 引用）<textarea rows={3} value={article.images.join("\n")} onChange={(event) => patch(article.id, { images: event.target.value.split(/\n+/).map((item) => item.trim()).filter(Boolean) })} /></label><RequirementFields item={article} onChange={(value) => patch(article.id, value)} /><div className="module-card-actions"><label className="file-button">添加附图<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(article.id, { images: [...article.images, await addAsset(file)] }); }} /></label><button className="inline-danger" onClick={() => update((draft) => { draft.articles = draft.articles.filter((item) => item.id !== article.id); })}>删除文章</button></div></div>}</article>; })}</div>
+    <div className="module-list">{project.articles.map((article) => { const open = expanded.has(article.id); const author = project.participants.find((person) => person.id === article.authorId)?.name || article.authorId; const summary = article.summary || article.body.replace(/[#*_>`\[\]]/g, " ").replace(/\s+/g, " ").trim(); return <article className={`settings-card article-editor-card compact-module-card ${open ? "expanded" : "collapsed"}`} id={`entity-${article.id}`} key={article.id}><button type="button" className="message-summary" aria-expanded={open} onClick={() => { toggle(article.id); onPreviewTarget({ kind: "article", entityId: article.id }); }}><span className="message-kind kind-article">文章</span><strong className="summary-title">{article.title}</strong><span className="summary-author">{author}</span><span className="message-summary-text">{summary || "暂无摘要"}</span><span className="message-expand-icon">⌄</span></button>{open && <div className="compact-module-details"><div className="field-row two"><label>标题<input value={article.title} onChange={(event) => patch(article.id, { title: event.target.value })} /></label><label>稳定 ID<input value={article.id} onChange={(event) => patch(article.id, { id: event.target.value })} /></label></div><div className="field-row two"><label>作者<select value={article.authorId} onChange={(event) => patch(article.id, { authorId: event.target.value })}>{project.participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>发布时间<input value={article.publishAt} onChange={(event) => patch(article.id, { publishAt: event.target.value })} /></label></div><label>摘要<textarea rows={2} value={article.summary} onChange={(event) => patch(article.id, { summary: event.target.value })} /></label><label>封面<input value={article.cover} placeholder="https://… 或 asset:…" onChange={(event) => patch(article.id, { cover: event.target.value })} /></label><label className="file-button">上传封面<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(article.id, { cover: await addAsset(file) }); }} /></label><label>Markdown 正文<textarea className="markdown-editor" rows={12} value={article.body} onChange={(event) => patch(article.id, { body: event.target.value })} /></label><label>附图（每行一个 URL 或 asset 引用）<textarea rows={3} value={article.images.join("\n")} onChange={(event) => patch(article.id, { images: event.target.value.split(/\n+/).map((item) => item.trim()).filter(Boolean) })} /></label><RequirementFields item={article} onChange={(value) => patch(article.id, value)} /><div className="module-card-actions"><label className="file-button">添加附图<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(article.id, { images: [...article.images, await addAsset(file)] }); }} /></label><button className="inline-danger" onClick={() => update((draft) => { draft.articles = draft.articles.filter((item) => item.id !== article.id); })}>删除文章</button></div></div>}</article>; })}</div>
   </div>;
 }
 
@@ -535,7 +628,7 @@ function ParticipantsPanel({ project, diagnostics, update, addAsset }: { project
   return <div><div className="section-heading"><div><h2>人物</h2><p>默认显示头像、名称与简介，点击后编辑完整档案和身份时间线。</p></div><button onClick={add}>＋ 添加人物</button></div><div className="participant-grid">{project.participants.map((person) => { const open = expanded.has(person.id); return <article className={`participant-card compact-module-card ${open ? "expanded" : "collapsed"}`} id={`entity-${person.id}`} key={person.id}><button type="button" className="message-summary participant-summary" aria-expanded={open} onClick={() => toggle(person.id)}><span className="summary-avatar">{person.avatar ? <img src={avatarUrl(person)} /> : person.name.slice(0, 1)}</span><span className="message-kind kind-person">人物</span><strong className="summary-title">{person.name}</strong><span className="message-summary-text">{person.bio || (person.identityTimeline.length ? `${person.identityTimeline.length} 段身份时间线` : "暂无简介")}</span><span className="message-expand-icon">⌄</span></button>{open && <div className="compact-module-details participant-fields"><div className="field-row two"><label>基准显示名<input value={person.name} onChange={(event) => patch(person.id, { name: event.target.value })} /><FieldError diagnostics={diagnostics} entityId={person.id} field="name" /></label><label>稳定 ID<input value={person.id} onChange={(event) => rename(person.id, event.target.value)} /><FieldError diagnostics={diagnostics} entityId={person.id} field="id" /></label></div><label>基准头像<input value={person.avatar} placeholder="https://… 或选择本地图片" onChange={(event) => patch(person.id, { avatar: event.target.value })} /></label><label className="file-button">上传头像<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (file) patch(person.id, { avatar: await addAsset(file) }); }} /></label><label>基准简介<textarea rows={2} value={person.bio} onChange={(event) => patch(person.id, { bio: event.target.value })} /></label><div className="timeline-editor"><div className="subsection-heading"><strong>身份时间线</strong><button className="inline-button" onClick={() => update((draft) => { const target = draft.participants.find((item) => item.id === person.id); target?.identityTimeline.push({ id: `${person.id}-identity-${(target.identityTimeline.length || 0) + 1}`, effectiveAt: "2026-01-01", name: person.name, avatar: person.avatar, bio: person.bio }); })}>＋ 添加身份</button></div>{person.identityTimeline.map((entry, index) => <div className="identity-row" key={entry.id}><input aria-label="生效日期" value={entry.effectiveAt} onChange={(event) => update((draft) => { const target = draft.participants.find((item) => item.id === person.id)?.identityTimeline[index]; if (target) target.effectiveAt = event.target.value; })} /><input aria-label="身份名称" value={entry.name} onChange={(event) => update((draft) => { const target = draft.participants.find((item) => item.id === person.id)?.identityTimeline[index]; if (target) target.name = event.target.value; })} /><input aria-label="身份头像" placeholder="头像" value={entry.avatar} onChange={(event) => update((draft) => { const target = draft.participants.find((item) => item.id === person.id)?.identityTimeline[index]; if (target) target.avatar = event.target.value; })} /><input aria-label="身份简介" placeholder="简介" value={entry.bio} onChange={(event) => update((draft) => { const target = draft.participants.find((item) => item.id === person.id)?.identityTimeline[index]; if (target) target.bio = event.target.value; })} /><button className="remove-button" onClick={() => update((draft) => { const target = draft.participants.find((item) => item.id === person.id); if (target) target.identityTimeline = target.identityTimeline.filter((_, i) => i !== index); })}>×</button></div>)}</div>{project.participants.length > 2 && <button className="inline-danger" onClick={() => update((draft) => { draft.participants = draft.participants.filter((item) => item.id !== person.id); })}>删除人物</button>}</div>}</article>; })}</div></div>;
 }
 
-function LibraryPanel({ project, update, addAsset }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string> }) {
+function LibraryPanel({ project, update, addAsset, onPreviewTarget }: { project: AuthoringProject; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string>; onPreviewTarget: (target: StudioPreviewTarget) => void }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   useEffect(() => setExpanded(new Set()), [project.id]);
   const toggle = (id: string) => setExpanded((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -543,18 +636,20 @@ function LibraryPanel({ project, update, addAsset }: { project: AuthoringProject
   const renameDocument = (oldId: string, id: string) => {
     setExpanded((current) => { const next = new Set(current); if (next.delete(oldId)) next.add(id); return next; });
     patchDocument(oldId, { id });
+    onPreviewTarget({ kind: "library", entityId: id });
   };
   const add = () => {
     const id = nextEntityId("document", project.documents.map((item) => item.id));
     update((draft) => { draft.documents.push({ id, type: "settings", title: "新设定集", items: [{ id: `${id}-item-1`, name: "新设定", image: "", time: "", description: "填写设定说明。", participantIds: [] }] }); });
     setExpanded((current) => new Set(current).add(id));
+    onPreviewTarget({ kind: "library", entityId: id });
   };
   return <div>
     <div className="section-heading"><div><h2>资料库与时间线</h2><p>设定集与事件时间线可作为独立页面导出；时间线参与者始终引用人物 ID。</p></div><button onClick={add}>＋ 添加文档</button></div>
     <div className="module-list">{project.documents.map((document) => {
       const open = expanded.has(document.id);
       return <article className={`settings-card compact-module-card ${open ? "expanded" : "collapsed"}`} key={document.id}>
-        <EditorSummary title={document.title} tag={document.type === "timeline" ? "时间线" : "设定集"} summary={`${document.items.length} 个条目 · ${document.id}`} expanded={open} onToggle={() => toggle(document.id)} />
+        <EditorSummary title={document.title} tag={document.type === "timeline" ? "时间线" : "设定集"} summary={`${document.items.length} 个条目 · ${document.id}`} expanded={open} onToggle={() => { toggle(document.id); onPreviewTarget({ kind: "library", entityId: document.id }); }} />
         {open && <div className="compact-module-details">
           <div className="field-row three"><label>标题<input value={document.title} onChange={(event) => patchDocument(document.id, { title: event.target.value })} /></label><label>稳定 ID<input value={document.id} onChange={(event) => renameDocument(document.id, event.target.value)} /></label><label>类型<select value={document.type} onChange={(event) => patchDocument(document.id, { type: event.target.value as LibraryDocument["type"] })}><option value="settings">设定集</option><option value="timeline">时间线</option></select></label></div>
           <div className="library-items">{document.items.map((item, index) => <div className="library-item" key={item.id}>{document.type === "settings" ? <label>名称<input value={item.name} onChange={(event) => update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.name = event.target.value; })} /></label> : <label>时间<input value={item.time} onChange={(event) => update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.time = event.target.value; })} /></label>}<label>图片<input value={item.image} placeholder="URL 或 asset:…" onChange={(event) => update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.image = event.target.value; })} /></label><label className="file-button">上传图片<input hidden type="file" accept="image/*" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; const reference = await addAsset(file); update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.image = reference; }); }} /></label>{document.type === "timeline" && <label>参与人物<select multiple value={item.participantIds} onChange={(event) => update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.participantIds = Array.from(event.target.selectedOptions, (option) => option.value); })}>{project.participants.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}<label>Markdown 描述<textarea rows={4} value={item.description} onChange={(event) => update((draft) => { const target = draft.documents.find((row) => row.id === document.id)?.items[index]; if (target) target.description = event.target.value; })} /></label><button className="inline-danger" onClick={() => update((draft) => { const target = draft.documents.find((row) => row.id === document.id); if (target) target.items = target.items.filter((_, i) => i !== index); })}>删除条目</button></div>)}</div>
@@ -579,27 +674,33 @@ function StoryPanel({ project, update }: { project: AuthoringProject; update: (r
         <div className="field-row two"><label>网页标题<input value={project.story.title} onChange={(event) => update((draft) => { draft.story.title = event.target.value; })} /></label><label>Favicon<input value={project.story.favicon} placeholder="URL 或 asset:…" onChange={(event) => update((draft) => { draft.story.favicon = event.target.value; })} /></label></div>
         <div><div className="subsection-heading"><strong>账号推进顺序</strong><select value="" onChange={(event) => { const id = event.target.value; if (id) update((draft) => { if (!draft.story.accountOrder.includes(id)) draft.story.accountOrder.push(id); }); }}><option value="">＋ 添加账号</option>{project.participants.filter((person) => !project.story.accountOrder.includes(person.id)).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></div><div className="order-list">{project.story.accountOrder.map((id, index) => <div key={id}><span>{index + 1}</span><strong>{project.participants.find((person) => person.id === id)?.name || id}</strong><button onClick={() => move(index, -1)}>↑</button><button onClick={() => move(index, 1)}>↓</button><button className="inline-danger" onClick={() => update((draft) => { draft.story.accountOrder = draft.story.accountOrder.filter((item) => item !== id); })}>移除</button></div>)}</div></div>
         <div className="field-row two"><label>坏结局提示<textarea rows={3} value={project.story.resetInfo} onChange={(event) => update((draft) => { draft.story.resetInfo = event.target.value; })} /></label><label>重置起点<select value={project.story.resetAccount} onChange={(event) => update((draft) => { draft.story.resetAccount = event.target.value; })}><option value="">不配置坏结局</option>{project.story.accountOrder.map((id) => <option key={id} value={id}>{project.participants.find((person) => person.id === id)?.name || id}</option>)}</select></label></div>
+        <div className="field-row two"><label>重置按钮文案<input value={project.story.resetLabel} placeholder="重置内容" onChange={(event) => update((draft) => { draft.story.resetLabel = event.target.value; })} /></label><label>重置确认提示<textarea rows={3} value={project.story.resetConfirmText} placeholder="说明重置后会移除哪些进度" onChange={(event) => update((draft) => { draft.story.resetConfirmText = event.target.value; })} /></label></div>
         <label>真结局提示<textarea rows={3} value={project.story.endInfo} onChange={(event) => update((draft) => { draft.story.endInfo = event.target.value; })} /></label>
-        <div className="contract-note"><strong>规则引用约定</strong><p>选择选项授予的 flags 可直接用于消息、对话、朋友圈和文章的解锁条件；以 bad-end / true-end 开头的 flag 会触发现有结局 Runtime。</p></div>
+        <div className="contract-note"><strong>规则引用约定</strong><p>选择选项授予的 flags 可直接用于消息、对话、社交和文章的解锁条件；以 bad-end / true-end 开头的 flag 会触发现有结局 Runtime。</p></div>
       </div>}
     </div>
   </div>;
 }
 
-function ProjectPanel({ project, diagnostics, update }: { project: AuthoringProject; diagnostics: Diagnostic[]; update: (recipe: (draft: AuthoringProject) => void) => void }) {
+function ProjectPanel({ project, diagnostics, update, addAsset }: { project: AuthoringProject; diagnostics: Diagnostic[]; update: (recipe: (draft: AuthoringProject) => void) => void; addAsset: (file: File) => Promise<string> }) {
   const [expanded, setExpanded] = useState(false);
   useEffect(() => setExpanded(false), [project.id]);
   const themeLabel = ({ wechat: "微信", paper: "纸张", iterms: "终端" } as Record<string, string>)[project.theme] || project.theme;
   const selfName = project.participants.find((person) => person.id === project.selfId)?.name || project.selfId;
   return <div>
-    <div className="section-heading"><div><h2>外观与项目</h2><p>设置写入版本化项目文件，Hub、对话、朋友圈和文章共享。</p></div></div>
+    <div className="section-heading"><div><h2>外观与项目</h2><p>设置写入版本化项目文件，Hub、对话、社交和文章共享。</p></div></div>
     <div className={`settings-card compact-module-card ${expanded ? "expanded" : "collapsed"}`}>
-      <EditorSummary title={project.title} tag={themeLabel} summary={`默认账号：${selfName} · 运营商：${project.statusBarCarrier || "未设置"}`} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
+      <EditorSummary title={project.title} tag={themeLabel} summary={`默认账号：${selfName} · BGM：${project.bgmMode === "audio" ? "自定义循环音频" : "默认心跳声"}`} expanded={expanded} onToggle={() => setExpanded((value) => !value)} />
       {expanded && <div className="compact-module-details">
         <label>作品标题<input value={project.title} onChange={(event) => update((draft) => { draft.title = event.target.value; })} /><FieldError diagnostics={diagnostics} field="title" /></label>
         <div className="field-row two"><label>主题<select value={project.theme} onChange={(event) => update((draft) => { draft.theme = event.target.value; })}><option value="wechat">微信</option><option value="paper">纸张</option><option value="iterms">终端</option></select></label><label>状态栏运营商<input value={project.statusBarCarrier} placeholder="中国移动" onChange={(event) => update((draft) => { draft.statusBarCarrier = event.target.value; })} /></label></div>
+        <div className="bgm-settings">
+          <label>BGM<select value={project.bgmMode} onChange={(event) => update((draft) => { draft.bgmMode = event.target.value as "heartbeat" | "audio"; })}><option value="heartbeat">默认心跳声</option><option value="audio">自定义循环音频</option></select></label>
+          {project.bgmMode === "audio" && <div className="field-row two"><label>音频地址<input value={project.bgmSource} placeholder="https://… 或上传本地音频" onChange={(event) => update((draft) => { draft.bgmSource = event.target.value; })} /><FieldError diagnostics={diagnostics} field="bgmSource" /></label><label className="file-button bgm-upload">上传 BGM<input hidden type="file" accept="audio/*" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; const reference = await addAsset(file); update((draft) => { draft.bgmMode = "audio"; draft.bgmSource = reference; }); }} /></label></div>}
+          <small className="field-help">自定义音频会在首次点击作品后开始，并在整个 Runtime 中循环播放。</small>
+        </div>
         <label>默认账号<select value={project.selfId} onChange={(event) => update((draft) => { draft.selfId = event.target.value; })}>{project.participants.map((person) => <option value={person.id} key={person.id}>{person.name}</option>)}</select><FieldError diagnostics={diagnostics} entityId={project.selfId} field="selfId" /></label>
-        <div className="contract-note"><strong>公开格式契约 v{project.schemaVersion}</strong><p>预览和导出生成多对话目录、共享 profiles、朋友圈与 Markdown 文章，再交给 Folder Compiler。</p></div>
+        <div className="contract-note"><strong>公开格式契约 v{project.schemaVersion}</strong><p>预览和导出生成多对话目录、共享 profiles、社交动态与 Markdown 文章，再交给 Folder Compiler。</p></div>
       </div>}
     </div>
   </div>;
